@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Kasse</title>
+<style>
+:root{
+  --bg:#0f1512;
+  --panel:#1a221d;
+  --panel2:#222c26;
+  --line:#2e3a32;
+  --ink:#f2f5f1;
+  --dim:#8fa096;
+  --money:#4cd97b;
+  --money-dark:#1d5c35;
+  --warn:#ff5c5c;
+  --amber:#ffc447;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);
+  padding-bottom:calc(130px + env(safe-area-inset-bottom));
+  user-select:none;-webkit-user-select:none;
+}
+.num{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-variant-numeric:tabular-nums}
+header{
+  padding:calc(14px + env(safe-area-inset-top)) 16px 10px;
+  display:flex;justify-content:space-between;align-items:baseline;
+}
+header h1{font-size:17px;font-weight:700;letter-spacing:.4px}
+header .date{font-size:13px;color:var(--dim)}
+.page{display:none;padding:0 12px}
+.page.active{display:block}
+
+/* ---------- Tabs ---------- */
+nav{
+  position:fixed;bottom:0;left:0;right:0;z-index:50;
+  display:flex;background:var(--panel);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav button{
+  flex:1;min-height:64px;background:none;border:none;color:var(--dim);
+  font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:3px;
+  align-items:center;justify-content:center;cursor:pointer;
+}
+nav button .ic{font-size:21px}
+nav button.on{color:var(--money)}
+
+/* ---------- Verkauf ---------- */
+.change-box{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  padding:14px 16px;margin-bottom:10px;text-align:center;
+}
+.change-box .lbl{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.change-box .val{font-size:46px;font-weight:800;line-height:1.15;color:var(--money)}
+.change-box .val.neg{color:var(--warn)}
+.change-box .sub{font-size:14px;color:var(--dim);margin-top:2px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+.row4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+.btn{
+  min-height:64px;border-radius:14px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);font-size:17px;font-weight:700;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  cursor:pointer;
+}
+.btn:active{background:var(--panel2)}
+.btn small{font-size:12px;font-weight:600;color:var(--dim)}
+.btn.sel{border-color:var(--money);background:var(--money-dark)}
+.ticket-btn{min-height:76px;position:relative}
+.ticket-btn .cnt{
+  position:absolute;top:6px;right:8px;min-width:26px;height:26px;padding:0 7px;
+  border-radius:13px;background:var(--money);color:#08120c;font-size:15px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+}
+.ticket-btn .cnt.zero{display:none}
+.minus-btn{min-height:76px;font-size:26px;color:var(--dim);max-width:64px}
+.trow{display:grid;grid-template-columns:1fr 1fr 64px;gap:8px;margin-bottom:8px}
+.sec-label{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:12px 4px 6px}
+.given-input,.shop-input{
+  min-height:64px;border-radius:14px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);font-size:22px;font-weight:700;text-align:center;
+  width:100%;font-family:ui-monospace,'SF Mono',Menlo,monospace;
+}
+.given-input:focus,.shop-input:focus{outline:none;border-color:var(--money)}
+.shop-row{display:grid;grid-template-columns:1fr 64px;gap:8px;margin-bottom:8px}
+.shop-add{min-height:64px;font-size:28px;color:var(--money)}
+.shop-list{margin-bottom:8px}
+.shop-item{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:10px 14px;margin-bottom:6px;font-size:16px;
+}
+.shop-item button{background:none;border:none;color:var(--warn);font-size:20px;padding:6px 10px;cursor:pointer}
+.finish{
+  width:100%;min-height:72px;border-radius:16px;border:none;
+  background:var(--money);color:#08120c;font-size:20px;font-weight:800;
+  margin:10px 0 4px;cursor:pointer;
+}
+.finish:disabled{opacity:.35}
+.clear-sale{
+  width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);
+  background:none;color:var(--dim);font-size:15px;font-weight:600;margin-bottom:16px;cursor:pointer;
+}
+
+/* ---------- Kasse zählen ---------- */
+.total-box{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  padding:14px 16px;margin-bottom:12px;text-align:center;position:sticky;top:0;z-index:10;
+}
+.total-box .val{font-size:38px;font-weight:800;color:var(--money)}
+.total-box .lbl{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.total-box .soll{font-size:14px;color:var(--dim);margin-top:4px}
+.total-box .diff{font-size:16px;font-weight:700;margin-top:2px}
+.total-box .diff.ok{color:var(--money)}
+.total-box .diff.plus{color:var(--amber)}
+.total-box .diff.minus{color:var(--warn)}
+.denom{
+  display:grid;grid-template-columns:78px 56px 1fr 56px 86px;gap:6px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:6px;margin-bottom:6px;
+}
+.denom .name{font-size:16px;font-weight:700;text-align:center}
+.denom .step{
+  min-height:56px;border-radius:10px;border:none;background:var(--panel2);
+  color:var(--ink);font-size:24px;font-weight:700;cursor:pointer;
+}
+.denom .step:active{background:var(--line)}
+.denom input{
+  min-height:56px;width:100%;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink);font-size:20px;font-weight:700;text-align:center;
+  font-family:ui-monospace,'SF Mono',Menlo,monospace;
+}
+.denom input:focus{outline:none;border-color:var(--money)}
+.denom .sub{font-size:14px;color:var(--dim);text-align:right;padding-right:6px}
+.reset-count{
+  width:100%;min-height:56px;border-radius:14px;border:1px solid var(--line);
+  background:none;color:var(--dim);font-size:15px;font-weight:600;margin:8px 0 16px;cursor:pointer;
+}
+
+/* ---------- Übersicht ---------- */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.stat{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px;text-align:center;
+}
+.stat .v{font-size:30px;font-weight:800}
+.stat .l{font-size:12px;color:var(--dim);margin-top:2px}
+.stat.money .v{color:var(--money)}
+.stat.wide{grid-column:1/-1}
+.price-row{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:10px 14px;margin-bottom:6px;
+}
+.price-row .n{font-size:16px;font-weight:600}
+.price-row input{
+  width:100px;min-height:48px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink);font-size:18px;font-weight:700;text-align:center;
+  font-family:ui-monospace,'SF Mono',Menlo,monospace;
+}
+.price-row input:focus{outline:none;border-color:var(--money)}
+
+/* ---------- iPad / große Bildschirme ---------- */
+@media (min-width:700px){
+  header,.page{max-width:640px;margin-left:auto;margin-right:auto}
+  nav{display:flex;justify-content:center}
+  nav button{max-width:220px}
+  .change-box .val{font-size:56px}
+  .btn,.ticket-btn{min-height:80px}
+}
+.danger{
+  width:100%;min-height:60px;border-radius:14px;border:1px solid var(--warn);
+  background:none;color:var(--warn);font-size:16px;font-weight:700;margin:14px 0 40px;cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="hd-title">Verkauf</h1>
+  <span class="date num" id="hd-date"></span>
+</header>
+
+<!-- ============ VERKAUF ============ -->
+<div class="page active" id="page-sale">
+
+  <div class="change-box">
+    <div class="lbl" id="cb-label">Rückgeld</div>
+    <div class="val num" id="cb-value">0,00 €</div>
+    <div class="sub num" id="cb-sub">Summe 0,00 € · Gegeben –</div>
+  </div>
+
+  <div class="sec-label">Eintritt</div>
+  <div class="trow">
+    <button class="btn ticket-btn" id="bt-schueler" onclick="addTicket('schueler')">
+      <span class="cnt zero" id="cnt-schueler">0</span>
+      Schüler<small id="pr-schueler">1,00 €</small>
+    </button>
+    <button class="btn ticket-btn" id="bt-erw" onclick="addTicket('erw')">
+      <span class="cnt zero" id="cnt-erw">0</span>
+      Erwachsene<small id="pr-erw">2,50 €</small>
+    </button>
+    <button class="btn minus-btn" onclick="removeTicket()">−</button>
+  </div>
+
+  <div class="sec-label">Shop</div>
+  <div class="shop-list" id="shop-list"></div>
+  <div class="shop-row">
+    <input class="shop-input num" id="shop-amount" type="text" inputmode="decimal" placeholder="Betrag €"
+           onkeydown="if(event.key==='Enter'){addShop();this.blur()}">
+    <button class="btn shop-add" onclick="addShop()">+</button>
+  </div>
+
+  <div class="sec-label">Gegeben</div>
+  <div class="row4">
+    <button class="btn" data-given="5" onclick="setGiven(5,this)">5 €</button>
+    <button class="btn" data-given="10" onclick="setGiven(10,this)">10 €</button>
+    <button class="btn" data-given="20" onclick="setGiven(20,this)">20 €</button>
+    <button class="btn" data-given="50" onclick="setGiven(50,this)">50 €</button>
+  </div>
+  <div class="row2">
+    <button class="btn" id="bt-exact" onclick="setExact(this)">Passend</button>
+    <input class="given-input num" id="given-input" type="text" inputmode="decimal" placeholder="Anderer Betrag"
+           oninput="customGiven(this.value)">
+  </div>
+
+  <button class="finish" id="bt-finish" onclick="finishSale()" disabled>Verkauf abschließen</button>
+  <button class="clear-sale" onclick="clearSale()">Eingabe löschen</button>
+</div>
+
+<!-- ============ KASSE ZÄHLEN ============ -->
+<div class="page" id="page-count">
+  <div class="total-box">
+    <div class="lbl">Kassenbestand</div>
+    <div class="val num" id="count-total">0,00 €</div>
+    <div class="soll num" id="count-soll">Soll 150,00 €</div>
+    <div class="diff num" id="count-diff"></div>
+  </div>
+  <div id="denoms"></div>
+  <button class="reset-count" onclick="resetCount(this)">Zählung auf 0 setzen</button>
+</div>
+
+<!-- ============ ÜBERSICHT ============ -->
+<div class="page" id="page-stats">
+  <div class="sec-label">Verkaufte Karten</div>
+  <div class="stat-grid">
+    <div class="stat"><div class="v num" id="st-schueler">0</div><div class="l">Schüler</div></div>
+    <div class="stat"><div class="v num" id="st-erw">0</div><div class="l">Erwachsene</div></div>
+    <div class="stat wide"><div class="v num" id="st-tickets">0</div><div class="l">Karten gesamt</div></div>
+  </div>
+
+  <div class="sec-label">Einnahmen</div>
+  <div class="stat-grid">
+    <div class="stat money"><div class="v num" id="st-eintritt">0,00 €</div><div class="l">Eintritt</div></div>
+    <div class="stat money"><div class="v num" id="st-shop">0,00 €</div><div class="l">Shop</div></div>
+    <div class="stat money wide"><div class="v num" id="st-gesamt">0,00 €</div><div class="l">Gesamt</div></div>
+  </div>
+
+  <div class="sec-label">Preise</div>
+  <div class="price-row">
+    <span class="n">Schüler</span>
+    <input class="num" id="price-schueler" type="text" inputmode="decimal" onchange="changePrice('schueler',this.value)">
+  </div>
+  <div class="price-row">
+    <span class="n">Erwachsene</span>
+    <input class="num" id="price-erw" type="text" inputmode="decimal" onchange="changePrice('erw',this.value)">
+  </div>
+
+  <div class="sec-label">Kasse</div>
+  <div class="price-row">
+    <span class="n">Wechselgeld (Grundbestand)</span>
+    <input class="num" id="price-wechsel" type="text" inputmode="decimal" onchange="changeWechselgeld(this.value)">
+  </div>
+
+  <button class="danger" onclick="resetDay(this)">Tag abschließen &amp; zurücksetzen</button>
+</div>
+
+<nav>
+  <button class="on" id="tab-sale" onclick="showPage('sale')"><span class="ic">💶</span>Verkauf</button>
+  <button id="tab-count" onclick="showPage('count')"><span class="ic">🧮</span>Kasse zählen</button>
+  <button id="tab-stats" onclick="showPage('stats')"><span class="ic">📊</span>Übersicht</button>
+</nav>
+
+<script>
+/* ================= Helpers (alles in Cent, keine Rundungsfehler) ================= */
+const fmt = c => (c/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+const parseEuro = s => {
+  if(!s) return NaN;
+  s = String(s).replace(/€/g,'').replace(/\s/g,'').replace(',','.');
+  const v = parseFloat(s);
+  return isNaN(v) ? NaN : Math.round(v*100);
+};
+const load = (k,d) => { try{ const v = JSON.parse(localStorage.getItem(k)); return v===null||v===undefined?d:v; }catch(e){ return d; } };
+const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+
+/* ================= State ================= */
+let prices = load('kasse_prices', {schueler:100, erw:250});
+let totals = load('kasse_totals', {schueler:0, erw:0, eintritt:0, shop:0});
+let wechselgeld = load('kasse_wechselgeld', 15000); // 150 € Grundbestand
+let counts = load('kasse_counts', {});   // Kassenzählung je Stückelung
+let sale = {schueler:0, erw:0, shop:[], given:null, exact:false, order:[]};
+
+/* ================= Navigation ================= */
+const titles = {sale:'Verkauf', count:'Kasse zählen', stats:'Übersicht'};
+function showPage(p){
+  ['sale','count','stats'].forEach(x=>{
+    document.getElementById('page-'+x).classList.toggle('active', x===p);
+    document.getElementById('tab-'+x).classList.toggle('on', x===p);
+  });
+  document.getElementById('hd-title').textContent = titles[p];
+  if(p==='stats') renderStats();
+}
+
+/* ================= Verkauf ================= */
+function saleSum(){
+  return sale.schueler*prices.schueler + sale.erw*prices.erw + sale.shop.reduce((a,b)=>a+b,0);
+}
+function addTicket(t){ sale[t]++; sale.order.push(t); renderSale(); }
+function removeTicket(){
+  const t = sale.order.pop();
+  if(t){ sale[t] = Math.max(0, sale[t]-1); renderSale(); }
+}
+function addShop(){
+  const inp = document.getElementById('shop-amount');
+  const c = parseEuro(inp.value);
+  if(!isNaN(c) && c>0){ sale.shop.push(c); inp.value=''; renderSale(); }
+}
+function delShop(i){ sale.shop.splice(i,1); renderSale(); }
+function setGiven(euro, btn){
+  sale.given = euro*100; sale.exact = false;
+  document.getElementById('given-input').value = '';
+  renderSale();
+}
+function setExact(btn){
+  sale.exact = !sale.exact;
+  if(sale.exact){ sale.given = null; document.getElementById('given-input').value=''; }
+  renderSale();
+}
+function customGiven(v){
+  const c = parseEuro(v);
+  sale.exact = false;
+  sale.given = (!isNaN(c) && c>0) ? c : null;
+  renderSale();
+}
+function renderSale(){
+  const sum = saleSum();
+  const given = sale.exact ? sum : sale.given;
+
+  // Ticket-Zähler
+  ['schueler','erw'].forEach(t=>{
+    const el = document.getElementById('cnt-'+t);
+    el.textContent = sale[t];
+    el.classList.toggle('zero', sale[t]===0);
+    document.getElementById('bt-'+t).classList.toggle('sel', sale[t]>0);
+  });
+  document.getElementById('pr-schueler').textContent = fmt(prices.schueler);
+  document.getElementById('pr-erw').textContent = fmt(prices.erw);
+
+  // Shop-Liste
+  document.getElementById('shop-list').innerHTML = sale.shop.map((c,i)=>
+    `<div class="shop-item"><span class="num">${fmt(c)}</span><button onclick="delShop(${i})">✕</button></div>`
+  ).join('');
+
+  // Gegeben-Buttons markieren
+  document.querySelectorAll('[data-given]').forEach(b=>{
+    b.classList.toggle('sel', !sale.exact && sale.given === parseInt(b.dataset.given)*100);
+  });
+  document.getElementById('bt-exact').classList.toggle('sel', sale.exact);
+
+  // Rückgeld
+  const cbV = document.getElementById('cb-value');
+  const cbL = document.getElementById('cb-label');
+  const cbS = document.getElementById('cb-sub');
+  if(given !== null && given !== undefined && sum > 0){
+    const change = given - sum;
+    if(change < 0){
+      cbL.textContent = 'Fehlt noch';
+      cbV.textContent = fmt(-change);
+      cbV.classList.add('neg');
+    } else {
+      cbL.textContent = 'Rückgeld';
+      cbV.textContent = fmt(change);
+      cbV.classList.remove('neg');
+    }
+    cbS.textContent = `Summe ${fmt(sum)} · Gegeben ${fmt(given)}`;
+  } else {
+    cbL.textContent = sum > 0 ? 'Summe' : 'Rückgeld';
+    cbV.textContent = fmt(sum);
+    cbV.classList.remove('neg');
+    cbS.textContent = sum > 0 ? 'Gegeben wählen' : 'Karten oder Shop antippen';
+  }
+
+  // Abschließen erlaubt, wenn etwas verkauft wird und genug gegeben (oder passend)
+  const ok = sum > 0 && (sale.exact || (given !== null && given >= sum));
+  document.getElementById('bt-finish').disabled = !ok;
+}
+function finishSale(){
+  totals.schueler += sale.schueler;
+  totals.erw += sale.erw;
+  totals.eintritt += sale.schueler*prices.schueler + sale.erw*prices.erw;
+  totals.shop += sale.shop.reduce((a,b)=>a+b,0);
+  save('kasse_totals', totals);
+  clearSale();
+  renderCount();
+  if(navigator.vibrate) navigator.vibrate(50);
+}
+function clearSale(){
+  sale = {schueler:0, erw:0, shop:[], given:null, exact:false, order:[]};
+  document.getElementById('given-input').value = '';
+  document.getElementById('shop-amount').value = '';
+  renderSale();
+}
+
+/* ================= Kasse zählen ================= */
+const DENOMS = [
+  [10000,'100 €'],[5000,'50 €'],[2000,'20 €'],[1000,'10 €'],[500,'5 €'],
+  [200,'2 €'],[100,'1 €'],[50,'50 ct'],[20,'20 ct'],[10,'10 ct'],[5,'5 ct'],[2,'2 ct'],[1,'1 ct']
+];
+function buildDenoms(){
+  document.getElementById('denoms').innerHTML = DENOMS.map(([c,name])=>`
+    <div class="denom">
+      <div class="name">${name}</div>
+      <button class="step" onclick="stepDenom(${c},-1)">−</button>
+      <input class="num" id="d-${c}" type="text" inputmode="numeric" value="${counts[c]||''}"
+             placeholder="0" oninput="inputDenom(${c},this.value)">
+      <button class="step" onclick="stepDenom(${c},1)">+</button>
+      <div class="sub num" id="ds-${c}"></div>
+    </div>`).join('');
+  renderCount();
+}
+function stepDenom(c,d){
+  const n = Math.max(0,(counts[c]||0)+d);
+  counts[c]=n;
+  document.getElementById('d-'+c).value = n||'';
+  save('kasse_counts',counts); renderCount();
+}
+function inputDenom(c,v){
+  const n = parseInt(v.replace(/\D/g,''))||0;
+  counts[c]=n;
+  save('kasse_counts',counts); renderCount();
+}
+function renderCount(){
+  let total=0;
+  DENOMS.forEach(([c])=>{
+    const n = counts[c]||0;
+    total += n*c;
+    document.getElementById('ds-'+c).textContent = n ? fmt(n*c) : '';
+  });
+  document.getElementById('count-total').textContent = fmt(total);
+
+  const soll = wechselgeld + totals.eintritt + totals.shop;
+  document.getElementById('count-soll').textContent =
+    `Soll ${fmt(soll)}  ·  ${fmt(wechselgeld)} Wechselgeld + ${fmt(totals.eintritt + totals.shop)} Einnahmen`;
+
+  const diffEl = document.getElementById('count-diff');
+  if(total === 0){
+    diffEl.textContent = '';
+    diffEl.className = 'diff num';
+  } else {
+    const diff = total - soll;
+    if(diff === 0){ diffEl.textContent = '✓ Stimmt genau'; diffEl.className = 'diff num ok'; }
+    else if(diff > 0){ diffEl.textContent = `+ ${fmt(diff)} zu viel`; diffEl.className = 'diff num plus'; }
+    else { diffEl.textContent = `− ${fmt(-diff)} fehlt`; diffEl.className = 'diff num minus'; }
+  }
+}
+let resetArm = {count:null, day:null};
+function armButton(key, btn, text, action){
+  if(resetArm[key]){
+    clearTimeout(resetArm[key].t);
+    resetArm[key] = null;
+    action();
+    btn.textContent = text;
+    return;
+  }
+  const orig = text;
+  btn.textContent = 'Nochmal tippen zum Bestätigen';
+  resetArm[key] = { t: setTimeout(()=>{ btn.textContent = orig; resetArm[key]=null; }, 3000) };
+}
+function resetCount(btn){
+  armButton('count', btn, 'Zählung auf 0 setzen', ()=>{
+    counts={}; save('kasse_counts',counts); buildDenoms();
+  });
+}
+
+/* ================= Übersicht ================= */
+function renderStats(){
+  document.getElementById('st-schueler').textContent = totals.schueler;
+  document.getElementById('st-erw').textContent = totals.erw;
+  document.getElementById('st-tickets').textContent = totals.schueler + totals.erw;
+  document.getElementById('st-eintritt').textContent = fmt(totals.eintritt);
+  document.getElementById('st-shop').textContent = fmt(totals.shop);
+  document.getElementById('st-gesamt').textContent = fmt(totals.eintritt + totals.shop);
+  document.getElementById('price-schueler').value = (prices.schueler/100).toLocaleString('de-DE',{minimumFractionDigits:2});
+  document.getElementById('price-erw').value = (prices.erw/100).toLocaleString('de-DE',{minimumFractionDigits:2});
+  document.getElementById('price-wechsel').value = (wechselgeld/100).toLocaleString('de-DE',{minimumFractionDigits:2});
+}
+function changeWechselgeld(v){
+  const c = parseEuro(v);
+  if(!isNaN(c) && c>=0){ wechselgeld = c; save('kasse_wechselgeld', wechselgeld); }
+  renderStats(); renderCount();
+}
+function changePrice(t,v){
+  const c = parseEuro(v);
+  if(!isNaN(c) && c>=0){ prices[t]=c; save('kasse_prices',prices); }
+  renderStats(); renderSale();
+}
+function resetDay(btn){
+  armButton('day', btn, 'Tag abschließen & zurücksetzen', ()=>{
+    totals = {schueler:0, erw:0, eintritt:0, shop:0};
+    save('kasse_totals', totals);
+    renderStats();
+    renderCount();
+  });
+}
+
+/* ================= Init ================= */
+document.getElementById('hd-date').textContent =
+  new Date().toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'});
+buildDenoms();
+renderSale();
+</script>
+</body>
+</html>
