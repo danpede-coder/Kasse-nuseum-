@@ -45,6 +45,7 @@ Bei jedem Ereignis wird der Sollzustand aus den aktuellen Zuständen neu berechn
 - Bettschutz: Nach dem Aufstehen bleibt das Licht noch für die Bettschutz-Freigabezeit gedimmt (z. B. nachts zur Toilette).
 - Tagsüber (nicht dunkel) schaltet die Automation nichts. Nur „Zimmer leer“ schaltet weiterhin aus.
 - Nachttisch-Taste 4 setzt den Modus auf `manuell_an` (zum Lesen). Ist das Zimmer 5 Minuten leer, springen alle Modi zurück auf `automatik`.
+- Nachttisch-Taste 1 („Alles aus, Musik läuft weiter“) schaltet nur aus und lässt die Automatik aktiv. Wer nachts aufsteht, bekommt also gedimmtes Licht.
 
 ## Regeln für Änderungen
 
@@ -52,6 +53,6 @@ Bei jedem Ereignis wird der Sollzustand aus den aktuellen Zuständen neu berechn
 2. Neue Zone: in die Gruppe `nehemia_jemand_wach` aufnehmen, in die Trigger `zone_an`/`zone_aus` eintragen und in `z_mitte` (oder als eigene Variable) ergänzen.
 3. Helligkeiten und Zeiten nur über die `input_number`-Helfer ändern, nicht im Code.
 4. Vor dem Speichern die Sollwert-Logik mit `ha_eval_template` und Testfällen prüfen (siehe Tabelle).
-5. HA speichert `variables` alphabetisch sortiert. Neue Variablen so benennen, dass sie alphabetisch nach allen Variablen kommen, die sie lesen (Beispiel: `z_*` → `z_wach` → `ziel_*`).
+5. Variablen im oberen `variables`-Block dürfen sich nicht gegenseitig lesen, denn die Reihenfolge ist nicht garantiert. Abgeleitete Werte gehören in eigene `- variables:`-Schritte im `default`-Zweig (erst `wach`, dann `ziel_*`). Prüfen im Trace und im System-Log (keine „undefined“-Warnungen).
 6. Die Automationen „Fokus“ und „Nehemia bei offene Fenster …“ schalten die Lampen einmalig aus. Das ist gewollt und kein Konflikt.
 7. Backup der alten (gelöschten) Automationen: `backup_alte_automationen.json`.
