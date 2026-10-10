@@ -77,7 +77,6 @@ variables:
     {{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_6', 'on')
        or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_7', 'on')
        or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_8', 'on') }}
-  wach: "{{ z_schrank or z_sofa or z_mitte }}"
   bett: "{{ is_state('binary_sensor.nehemia_bett_belegt', 'on') }}"
   beide_im_bett: >-
     {{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_4', 'on')
@@ -95,17 +94,20 @@ variables:
   tuer_an: "{{ is_state('light.zimmer_nehemia_tur_licht', 'on') }}"
   ist_schrank: "{{ ((state_attr('light.hue_white_lamp_1', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
   ist_sofa: "{{ ((state_attr('light.hue_white_lamp_2', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
+  # HA speichert Variablen alphabetisch sortiert: Namen so waehlen, dass
+  # jede Variable nach denen kommt, die sie liest (z_* -> z_wach -> ziel_*).
+  z_wach: "{{ z_schrank or z_sofa or z_mitte }}"
   ziel_schrank: >-
-    {% if wach and bettschutz %}{{ bett_hell if z_schrank else 0 }}
-    {% elif wach %}{{ hell if (z_schrank or z_mitte) else (neben if schrank_an else 0) }}
+    {% if z_wach and bettschutz %}{{ bett_hell if z_schrank else 0 }}
+    {% elif z_wach %}{{ hell if (z_schrank or z_mitte) else (neben if schrank_an else 0) }}
     {% elif bett and not beide_im_bett and not gute_nacht and schrank_an %}{{ bett_hell }}
     {% else %}0{% endif %}
   ziel_sofa: >-
-    {% if wach and bettschutz %}{{ bett_hell if (z_sofa or z_mitte) else 0 }}
-    {% elif wach %}{{ hell if (z_sofa or z_mitte) else (neben if sofa_an else 0) }}
+    {% if z_wach and bettschutz %}{{ bett_hell if (z_sofa or z_mitte) else 0 }}
+    {% elif z_wach %}{{ hell if (z_sofa or z_mitte) else (neben if sofa_an else 0) }}
     {% elif bett and not beide_im_bett and not gute_nacht and sofa_an %}{{ bett_hell }}
     {% else %}0{% endif %}
-  ziel_tuer: "{{ 1 if (wach and bettschutz) else 0 }}"
+  ziel_tuer: "{{ 1 if (z_wach and bettschutz) else 0 }}"
 actions:
   - choose:
       - alias: Zimmer leer - alles aus, Musik stopp

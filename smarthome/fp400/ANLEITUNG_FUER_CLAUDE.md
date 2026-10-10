@@ -52,4 +52,6 @@ Bei jedem Ereignis wird der Sollzustand aus den aktuellen Zuständen neu berechn
 2. Neue Zone: in die Gruppe `nehemia_jemand_wach` aufnehmen, in die Trigger `zone_an`/`zone_aus` eintragen und in `z_mitte` (oder als eigene Variable) ergänzen.
 3. Helligkeiten und Zeiten nur über die `input_number`-Helfer ändern, nicht im Code.
 4. Vor dem Speichern die Sollwert-Logik mit `ha_eval_template` und Testfällen prüfen (siehe Tabelle).
-5. Backup der alten Automationen: `backup_alte_automationen.json`.
+5. HA speichert `variables` alphabetisch sortiert. Neue Variablen so benennen, dass sie alphabetisch nach allen Variablen kommen, die sie lesen (Beispiel: `z_*` → `z_wach` → `ziel_*`).
+6. Die Automationen „Fokus“ und „Nehemia bei offene Fenster …“ schalten die Lampen einmalig aus. Das ist gewollt und kein Konflikt.
+7. Backup der alten (gelöschten) Automationen: `backup_alte_automationen.json`.
