@@ -1,14 +1,21 @@
+id: "1791637610981"
 alias: Nehemia Licht Steuerung (2 Personen)
 description: >-
-  Eine zentrale Lichtsteuerung fuer Zimmer Nehemia (FP400). Bei jeder Aenderung
-  wird neu berechnet, welche Lampe wie hell sein soll. Nur bei Dunkelheit.
-  Liegt jemand im Bett, gibt es nur gedimmtes Licht. Beide im Bett = aus.
+  Zentrale Lichtsteuerung Zimmer Nehemia (Aqara FP400). Bei jedem Ereignis wird
+  der Sollzustand jeder Lampe neu berechnet. Nur bei Dunkelheit. Robust gegen
+  FP400-Rauschen: Lampen werden gehalten solange ihre Zone kuerzlich aktiv war,
+  Betten zaehlen erst entprellt (Merker), "Zimmer leer" nur nach Tuerbewegung
+  oder nach langer Leerzeit. Im Bett nur gedimmtes Licht, beide im Bett = aus.
   Lampen mit Modus manuell_an/manuell_aus werden nicht angefasst.
-mode: restart
+mode: queued
+max: 10
+max_exceeded: silent
+trace:
+  stored_traces: 30
 triggers:
   - id: zone_an
     trigger: state
-    entity_id:
+    entity_id: &wachzonen
       - binary_sensor.spatial_multi_sensor_fp400_belegung_2  # Schrank
       - binary_sensor.spatial_multi_sensor_fp400_belegung_3  # Sofa
       - binary_sensor.spatial_multi_sensor_fp400_belegung_6  # Bett Gang
@@ -18,28 +25,37 @@ triggers:
     to: "on"
   - id: zone_aus
     trigger: state
-    entity_id:
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_2
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_3
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_6
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_7
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_8
+    entity_id: *wachzonen
     from: "on"
     to: "off"
     for: "{{ states('input_number.nehemia_nachlaufzeit_zonenwechsel') | int(60) }}"
-  - id: bett_an
+  - id: bett_rein_caleb
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_4  # Bett Caleb
+    to: "on"
+    for: "{{ states('input_number.nehemia_bett_entprellung') | int(45) }}"
+  - id: bett_rein_dan
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_5  # Bett Dan
+    to: "on"
+    for: "{{ states('input_number.nehemia_bett_entprellung') | int(45) }}"
+  - id: bett_raus_caleb
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_4
+    to: "off"
+    for: "{{ states('input_number.nehemia_bett_nachlauf') | int(90) }}"
+  - id: bett_raus_dan
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_5
+    to: "off"
+    for: "{{ states('input_number.nehemia_bett_nachlauf') | int(90) }}"
+  - id: bett_roh_aus
     trigger: state
     entity_id:
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_4  # Bett Caleb
-      - binary_sensor.spatial_multi_sensor_fp400_belegung_5  # Bett Dan
-    from: "off"
-    to: "on"
-  - id: bett_frei
-    trigger: state
-    entity_id: binary_sensor.nehemia_bett_belegt
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_4
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_5
     from: "on"
     to: "off"
-    for: "{{ states('input_number.nehemia_bettschutz_freigabezeit') | int(120) }}"
   - id: dunkel
     trigger: state
     entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
@@ -64,46 +80,70 @@ triggers:
     from: "on"
     to: "off"
     for: "{{ states('input_number.nehemia_leerzeit_zimmer') | int(120) }}"
-  - id: modus_reset
+  - id: leer_lang
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung
+    to: "off"
+    for: "{{ states('input_number.nehemia_leerzeit_lang') | int(20) * 60 }}"
+  - id: lampe_aus_schrank
+    trigger: state
+    entity_id: light.hue_white_lamp_1
     from: "on"
     to: "off"
-    for: "00:05:00"
-variables:
-  z_schrank: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_2', 'on') }}"
-  z_sofa: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_3', 'on') }}"
-  z_mitte: >-
-    {{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_6', 'on')
-       or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_7', 'on')
-       or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_8', 'on') }}
-  bett: "{{ is_state('binary_sensor.nehemia_bett_belegt', 'on') }}"
-  beide_im_bett: >-
-    {{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_4', 'on')
-       and is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_5', 'on') }}
-  bettschutz: >-
-    {% set g = 'binary_sensor.nehemia_bett_belegt' %}
-    {{ not (is_state(g, 'off') and (now() - states[g].last_changed).total_seconds()
-       >= states('input_number.nehemia_bettschutz_freigabezeit') | float(120)) }}
-  gute_nacht: "{{ (trigger.id | default('')) == 'gute_nacht' }}"
-  hell: "{{ states('input_number.nehemia_helligkeit_normal') | int(50) }}"
-  neben: "{{ states('input_number.nehemia_helligkeit_nebenlampe') | int(10) }}"
-  bett_hell: "{{ states('input_number.nehemia_helligkeit_bett') | int(8) }}"
-  schrank_an: "{{ is_state('light.hue_white_lamp_1', 'on') }}"
-  sofa_an: "{{ is_state('light.hue_white_lamp_2', 'on') }}"
-  tuer_an: "{{ is_state('light.zimmer_nehemia_tur_licht', 'on') }}"
-  ist_schrank: "{{ ((state_attr('light.hue_white_lamp_1', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
-  ist_sofa: "{{ ((state_attr('light.hue_white_lamp_2', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
-  # Wichtig: Werte hier oben duerfen sich NICHT gegenseitig lesen (Reihenfolge
-  # ist nicht garantiert). Abgeleitete Werte stehen als eigene Schritte im
-  # default-Zweig (erst wach, dann ziel_*).
+  - id: lampe_aus_sofa
+    trigger: state
+    entity_id: light.hue_white_lamp_2
+    from: "on"
+    to: "off"
+  - id: lampe_aus_tuer
+    trigger: state
+    entity_id: light.zimmer_nehemia_tur_licht
+    from: "on"
+    to: "off"
+  - id: lampe_zurueck
+    trigger: state
+    entity_id:
+      - light.hue_white_lamp_1
+      - light.hue_white_lamp_2
+      - light.zimmer_nehemia_tur_licht
+    from: unavailable
+  - id: start
+    trigger: homeassistant
+    event: start
 actions:
+  # 1) Seiteneffekte je nach Ausloeser
   - choose:
-      - alias: Zimmer leer - alles aus, Musik stopp
+      - alias: Zimmer leer (Tuer bewegt) oder lange leer - alles aus
         conditions:
-          - condition: trigger
-            id: leer
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: leer_lang
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: leer
+                  - >-
+                    {{ (now() - states['binary_sensor.myggbett_door_window_sensor_tur_2'].last_changed).total_seconds()
+                       < states('input_number.nehemia_leerzeit_zimmer') | float(120) + 300 }}
         sequence:
+          - action: media_player.media_stop
+            target:
+              entity_id: media_player.nehemia_homepod
+            continue_on_error: true
+          - action: input_boolean.turn_off
+            target:
+              entity_id:
+                - input_boolean.nehemia_bett_dan
+                - input_boolean.nehemia_bett_caleb
+          - action: input_select.select_option
+            target:
+              entity_id:
+                - input_select.nehemia_modus_schrank
+                - input_select.nehemia_modus_sofa
+                - input_select.nehemia_modus_tuerlicht
+            data:
+              option: automatik
           - action: light.turn_off
             target:
               entity_id:
@@ -113,127 +153,264 @@ actions:
             data:
               transition: 3
             continue_on_error: true
-          - action: media_player.media_stop
-            target:
-              entity_id: media_player.nehemia_homepod
-            continue_on_error: true
-      - alias: 5 min leer - Modi zurueck auf Automatik
+          - stop: Zimmer leer
+      - alias: Gesamt aus, aber Tuer nicht bewegt - vermutlich Radar-Aussetzer
         conditions:
           - condition: trigger
-            id: modus_reset
+            id: leer
+        sequence:
+          - stop: Radar-Aussetzer, nichts tun
+      - alias: Schranklicht von Automation/Skript aus - manuell_an beenden
+        conditions:
+          - condition: trigger
+            id: lampe_aus_schrank
+          - condition: state
+            entity_id: input_select.nehemia_modus_schrank
+            state: manuell_an
+          - "{{ trigger.to_state.context.parent_id is not none }}"
         sequence:
           - action: input_select.select_option
             target:
-              entity_id:
-                - input_select.nehemia_modus_schrank
-                - input_select.nehemia_modus_sofa
-                - input_select.nehemia_modus_tuerlicht
+              entity_id: input_select.nehemia_modus_schrank
             data:
               option: automatik
-    default:
-      - alias: Ist jemand wach?
-        variables:
-          wach: "{{ z_schrank or z_sofa or z_mitte }}"
-      - alias: Sollhelligkeit je Lampe
-        variables:
-          ziel_schrank: >-
-            {% if wach and bettschutz %}{{ bett_hell if z_schrank else 0 }}
-            {% elif wach %}{{ hell if (z_schrank or z_mitte) else (neben if schrank_an else 0) }}
-            {% elif bett and not beide_im_bett and not gute_nacht and schrank_an %}{{ bett_hell }}
-            {% else %}0{% endif %}
-          ziel_sofa: >-
-            {% if wach and bettschutz %}{{ bett_hell if (z_sofa or z_mitte) else 0 }}
-            {% elif wach %}{{ hell if (z_sofa or z_mitte) else (neben if sofa_an else 0) }}
-            {% elif bett and not beide_im_bett and not gute_nacht and sofa_an %}{{ bett_hell }}
-            {% else %}0{% endif %}
-          ziel_tuer: "{{ 1 if (wach and bettschutz) else 0 }}"
-      - alias: Tagsueber nichts schalten
-        if:
-          - condition: state
-            entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
-            state: "off"
-          - condition: not
-            conditions:
-              - condition: trigger
-                id: gute_nacht
-        then:
-          - stop: Hell - Automatik schaltet nichts
-      - alias: Schranklicht
-        if:
-          - condition: state
-            entity_id: input_select.nehemia_modus_schrank
-            state: automatik
-        then:
-          - choose:
-              - conditions:
-                  - "{{ ziel_schrank | int == 0 and schrank_an }}"
-                sequence:
-                  - action: light.turn_off
-                    target:
-                      entity_id: light.hue_white_lamp_1
-                    data:
-                      transition: 3
-                    continue_on_error: true
-              - conditions:
-                  - "{{ ziel_schrank | int > 0 and (not schrank_an or (ist_schrank - ziel_schrank | int) | abs > 1) }}"
-                sequence:
-                  - action: light.turn_on
-                    target:
-                      entity_id: light.hue_white_lamp_1
-                    data:
-                      brightness_pct: "{{ ziel_schrank | int }}"
-                      transition: 1
-                    continue_on_error: true
-      - alias: Sofa-/Fensterlicht
-        if:
+          - stop: Modus Schrank zurueck auf automatik
+      - alias: Sofalicht von Automation/Skript aus - manuell_an beenden
+        conditions:
+          - condition: trigger
+            id: lampe_aus_sofa
           - condition: state
             entity_id: input_select.nehemia_modus_sofa
-            state: automatik
-        then:
-          - choose:
-              - conditions:
-                  - "{{ ziel_sofa | int == 0 and sofa_an }}"
-                sequence:
-                  - action: light.turn_off
-                    target:
-                      entity_id: light.hue_white_lamp_2
-                    data:
-                      transition: 3
-                    continue_on_error: true
-              - conditions:
-                  - "{{ ziel_sofa | int > 0 and (not sofa_an or (ist_sofa - ziel_sofa | int) | abs > 1) }}"
-                sequence:
-                  - action: light.turn_on
-                    target:
-                      entity_id: light.hue_white_lamp_2
-                    data:
-                      brightness_pct: "{{ ziel_sofa | int }}"
-                      transition: 1
-                    continue_on_error: true
-      - alias: Tuerlicht (Orientierung, nur im Bett-Modus)
-        if:
+            state: manuell_an
+          - "{{ trigger.to_state.context.parent_id is not none }}"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_sofa
+            data:
+              option: automatik
+          - stop: Modus Sofa zurueck auf automatik
+      - alias: Tuerlicht von Automation/Skript aus - manuell_an beenden
+        conditions:
+          - condition: trigger
+            id: lampe_aus_tuer
           - condition: state
             entity_id: input_select.nehemia_modus_tuerlicht
-            state: automatik
-        then:
-          - choose:
-              - conditions:
-                  - "{{ ziel_tuer | int == 0 and tuer_an }}"
-                sequence:
-                  - action: light.turn_off
-                    target:
-                      entity_id: light.zimmer_nehemia_tur_licht
-                    data:
-                      transition: 3
-                    continue_on_error: true
-              - conditions:
-                  - "{{ ziel_tuer | int > 0 and not tuer_an }}"
-                sequence:
-                  - action: light.turn_on
-                    target:
-                      entity_id: light.zimmer_nehemia_tur_licht
-                    data:
-                      brightness_pct: 1
-                      color_temp_kelvin: 2700
-                      transition: 1
-                    continue_on_error: true
+            state: manuell_an
+          - "{{ trigger.to_state.context.parent_id is not none }}"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_tuerlicht
+            data:
+              option: automatik
+          - stop: Modus Tuer zurueck auf automatik
+      - alias: Sonst bei Lampe aus nichts tun
+        conditions:
+          - condition: trigger
+            id:
+              - lampe_aus_schrank
+              - lampe_aus_sofa
+              - lampe_aus_tuer
+        sequence:
+          - stop: Lampe aus
+      - alias: Bett Caleb entprellt belegt
+        conditions:
+          - condition: trigger
+            id: bett_rein_caleb
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.nehemia_bett_caleb
+      - alias: Bett Dan entprellt belegt
+        conditions:
+          - condition: trigger
+            id: bett_rein_dan
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.nehemia_bett_dan
+      - alias: Bett Caleb entprellt frei
+        conditions:
+          - condition: trigger
+            id: bett_raus_caleb
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nehemia_bett_caleb
+      - alias: Bett Dan entprellt frei
+        conditions:
+          - condition: trigger
+            id: bett_raus_dan
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nehemia_bett_dan
+  # 2) Werte berechnen. Jeder Schritt liest nur Werte aus frueheren Schritten.
+  - alias: Basiswerte
+    variables:
+      nachlauf: "{{ states('input_number.nehemia_nachlaufzeit_zonenwechsel') | float(60) }}"
+      freigabe: "{{ states('input_number.nehemia_bettschutz_freigabezeit') | float(60) }}"
+      hell: "{{ states('input_number.nehemia_helligkeit_normal') | int(50) }}"
+      neben: "{{ states('input_number.nehemia_helligkeit_nebenlampe') | int(10) }}"
+      bett_hell: "{{ states('input_number.nehemia_helligkeit_bett') | int(8) }}"
+      s_an: "{{ is_state('light.hue_white_lamp_1', 'on') }}"
+      f_an: "{{ is_state('light.hue_white_lamp_2', 'on') }}"
+      t_an: "{{ is_state('light.zimmer_nehemia_tur_licht', 'on') }}"
+      ist_s: "{{ ((state_attr('light.hue_white_lamp_1', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
+      ist_f: "{{ ((state_attr('light.hue_white_lamp_2', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
+      bett_dan: "{{ is_state('input_boolean.nehemia_bett_dan', 'on') }}"
+      bett_caleb: "{{ is_state('input_boolean.nehemia_bett_caleb', 'on') }}"
+      roh_dan: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_5', 'on') }}"
+      roh_caleb: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_4', 'on') }}"
+      bett_geaendert_vor: >-
+        {{ (now() - (expand('input_boolean.nehemia_bett_dan', 'input_boolean.nehemia_bett_caleb')
+            | map(attribute='last_changed') | max)).total_seconds() }}
+  - alias: Zonen und Bett
+    variables:
+      # z_* = jetzt belegt; h_* = belegt oder vor weniger als Nachlaufzeit noch belegt (halten)
+      z_s: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_2', 'on') }}"
+      z_f: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_3', 'on') }}"
+      z_m: >-
+        {{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_6', 'on')
+           or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_7', 'on')
+           or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_8', 'on') }}
+      h_s: >-
+        {% set e = 'binary_sensor.spatial_multi_sensor_fp400_belegung_2' %}
+        {{ is_state(e, 'on') or (now() - states[e].last_changed).total_seconds() < nachlauf - 1 }}
+      h_f: >-
+        {% set e = 'binary_sensor.spatial_multi_sensor_fp400_belegung_3' %}
+        {{ is_state(e, 'on') or (now() - states[e].last_changed).total_seconds() < nachlauf - 1 }}
+      h_m: >-
+        {% set ns = namespace(h=false) %}
+        {% for e in ['binary_sensor.spatial_multi_sensor_fp400_belegung_6',
+                     'binary_sensor.spatial_multi_sensor_fp400_belegung_7',
+                     'binary_sensor.spatial_multi_sensor_fp400_belegung_8'] %}
+          {% if is_state(e, 'on') or (now() - states[e].last_changed).total_seconds() < nachlauf - 1 %}
+            {% set ns.h = true %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.h }}
+      bett: "{{ bett_dan or bett_caleb }}"
+      beide: "{{ bett_dan and bett_caleb }}"
+      geist: "{{ bett_dan and bett_caleb and roh_dan and roh_caleb }}"
+      bettschutz: "{{ bett_dan or bett_caleb or bett_geaendert_vor < freigabe }}"
+      gute_nacht: "{{ (trigger.id | default('')) == 'gute_nacht' and (bett_dan or bett_caleb) }}"
+  - alias: Ist jemand wach?
+    variables:
+      wach: "{{ z_s or z_f or z_m }}"
+      wach_eff: "{{ (z_s or z_f or z_m) and not geist }}"
+      wach_halten: "{{ h_s or h_f or h_m }}"
+  # ziel: Prozent; 0 = aus; -1 = so lassen
+  - alias: Sollhelligkeit je Lampe
+    variables:
+      ziel_s: >-
+        {% if gute_nacht or (beide and not wach_eff) %}0
+        {% elif wach_eff and bettschutz %}{{ bett_hell if (z_s or (s_an and h_s)) else 0 }}
+        {% elif wach_eff %}{{ hell if (z_s or z_m) else (-1 if (s_an and (h_s or h_m)) else (neben if s_an else 0)) }}
+        {% elif wach_halten %}-1
+        {% elif bett %}{{ (bett_hell if ist_s > bett_hell + 1 else -1) if s_an else 0 }}
+        {% else %}-1{% endif %}
+      ziel_f: >-
+        {% if gute_nacht or (beide and not wach_eff) %}0
+        {% elif wach_eff and bettschutz %}{{ bett_hell if (z_f or z_m or (f_an and (h_f or h_m))) else 0 }}
+        {% elif wach_eff %}{{ hell if (z_f or z_m) else (-1 if (f_an and (h_f or h_m)) else (neben if f_an else 0)) }}
+        {% elif wach_halten %}-1
+        {% elif bett %}{{ (bett_hell if ist_f > bett_hell + 1 else -1) if f_an else 0 }}
+        {% else %}-1{% endif %}
+      ziel_t: >-
+        {% if gute_nacht or not bettschutz %}0
+        {% elif wach %}1
+        {% elif wach_halten %}-1
+        {% else %}0{% endif %}
+  - alias: Tagsueber nichts schalten
+    if:
+      - condition: state
+        entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
+        state: "off"
+      - condition: not
+        conditions:
+          - condition: trigger
+            id: gute_nacht
+    then:
+      - stop: Hell - Automatik schaltet nichts
+  # 3) Lampen schalten (nur im Modus automatik)
+  - alias: Schranklicht
+    if:
+      - condition: state
+        entity_id: input_select.nehemia_modus_schrank
+        state: automatik
+    then:
+      - choose:
+          - conditions:
+              - "{{ ziel_s | int == 0 and s_an }}"
+            sequence:
+              - action: light.turn_off
+                target:
+                  entity_id: light.hue_white_lamp_1
+                data:
+                  transition: 3
+                continue_on_error: true
+          - conditions:
+              - "{{ ziel_s | int > 0 and (not s_an or (ist_s - ziel_s | int) | abs > 1) }}"
+            sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.hue_white_lamp_1
+                data:
+                  brightness_pct: "{{ ziel_s | int }}"
+                  transition: 1
+                continue_on_error: true
+  - alias: Sofa-/Fensterlicht
+    if:
+      - condition: state
+        entity_id: input_select.nehemia_modus_sofa
+        state: automatik
+    then:
+      - choose:
+          - conditions:
+              - "{{ ziel_f | int == 0 and f_an }}"
+            sequence:
+              - action: light.turn_off
+                target:
+                  entity_id: light.hue_white_lamp_2
+                data:
+                  transition: 3
+                continue_on_error: true
+          - conditions:
+              - "{{ ziel_f | int > 0 and (not f_an or (ist_f - ziel_f | int) | abs > 1) }}"
+            sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.hue_white_lamp_2
+                data:
+                  brightness_pct: "{{ ziel_f | int }}"
+                  transition: 1
+                continue_on_error: true
+  - alias: Tuerlicht (Orientierung nur im Bett-Modus)
+    if:
+      - condition: state
+        entity_id: input_select.nehemia_modus_tuerlicht
+        state: automatik
+    then:
+      - choose:
+          - conditions:
+              - "{{ ziel_t | int == 0 and t_an }}"
+            sequence:
+              - action: light.turn_off
+                target:
+                  entity_id: light.zimmer_nehemia_tur_licht
+                data:
+                  transition: 3
+                continue_on_error: true
+          - conditions:
+              - "{{ ziel_t | int > 0 and not t_an }}"
+            sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.zimmer_nehemia_tur_licht
+                data:
+                  brightness_pct: 1
+                  color_temp_kelvin: 2700
+                  transition: 1
+                continue_on_error: true
