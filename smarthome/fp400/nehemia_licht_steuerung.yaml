@@ -1,0 +1,547 @@
+id: "1791637610981"
+alias: Nehemia Licht Steuerung (2 Personen)
+description: >-
+  Zentrale Lichtsteuerung Zimmer Nehemia (Aqara FP400). Bei jedem Ereignis wird
+  der Sollzustand jeder Lampe neu berechnet. Nur bei Dunkelheit. Robust gegen
+  FP400-Rauschen: Lampen werden gehalten solange ihre Zone kuerzlich aktiv war,
+  Betten zaehlen erst entprellt (Merker, gehalten solange kein Aufstehen belegt ist),
+  gleichzeitig angesprungene Bettzonen zaehlen nicht als "beide", "Zimmer leer" nur
+  nach Tuerbewegung oder nach langer Leerzeit. Ausgesteckte/offline Lampen werden von
+  der anderen Lampe ersetzt; das Matter-Tuerlicht wird nicht blockierend per Skript
+  geschaltet. Im Bett nur gedimmtes Licht, beide im Bett = aus (nur Orientierung 1 %).
+  Lampen mit Modus manuell_an/manuell_aus werden nicht angefasst.
+mode: queued
+max: 10
+max_exceeded: warning
+trace:
+  stored_traces: 300
+triggers:
+  - id: zone_an
+    trigger: state
+    entity_id: &wachzonen
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_2  # Schrank
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_3  # Sofa
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_6  # Bett Gang
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_7  # Wand iPad
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_8  # Raum Mitte
+    from: "off"
+    to: "on"
+  - id: zone_aus
+    trigger: state
+    entity_id: *wachzonen
+    from: "on"
+    to: "off"
+    for: "{{ states('input_number.nehemia_nachlaufzeit_zonenwechsel') | int(300) }}"
+  # Kurze Neuberechnung 30 s nach Zonen-Aus: nimmt das 1-%-Orientierungslicht (Tuer-Ersatz)
+  # nach Fehl-Blips wieder weg. Gehaltene Lampen bleiben, h_* haelt die volle Nachlaufzeit.
+  - id: zone_aus_kurz
+    trigger: state
+    entity_id: *wachzonen
+    from: "on"
+    to: "off"
+    for: 30
+  # Bett-/Leer-Trigger ignorieren Uebergaenge aus unavailable (FP400-Neuverbindung, 12.10. 05:33)
+  - id: bett_rein_caleb
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_4  # Bett Caleb
+    not_from: &weg
+      - unavailable
+      - unknown
+    to: "on"
+    for: "{{ states('input_number.nehemia_bett_entprellung') | int(45) }}"
+  - id: bett_rein_dan
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_5  # Bett Dan
+    not_from: *weg
+    to: "on"
+    for: "{{ states('input_number.nehemia_bett_entprellung') | int(45) }}"
+  - id: bett_raus_caleb
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_4
+    not_from: *weg
+    to: "off"
+    for: "{{ states('input_number.nehemia_bett_nachlauf') | int(90) }}"
+  - id: bett_raus_dan
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_5
+    not_from: *weg
+    to: "off"
+    for: "{{ states('input_number.nehemia_bett_nachlauf') | int(90) }}"
+  - id: bett_roh_aus
+    trigger: state
+    entity_id:
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_4
+      - binary_sensor.spatial_multi_sensor_fp400_belegung_5
+    from: "on"
+    to: "off"
+  - id: dunkel
+    trigger: state
+    entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
+    from: "off"
+    to: "on"
+  - id: modus
+    trigger: state
+    entity_id:
+      - input_select.nehemia_modus_schrank
+      - input_select.nehemia_modus_sofa
+      - input_select.nehemia_modus_tuerlicht
+    to: automatik
+  # Gute Nacht: jemand im Bett und niemand wach, beides seit Gute-Nacht-Zeit.
+  # now() statt for: wird nach Neustart scharf und uebernimmt Helfer-Aenderungen sofort.
+  - id: gute_nacht
+    trigger: template
+    value_template: >-
+      {% set jetzt = now() %}
+      {% set gn = states('input_number.nehemia_gute_nacht_zeit') | int(20) * 60 %}
+      {% set w = states.binary_sensor.nehemia_jemand_wach %}
+      {% set im_bett = expand('input_boolean.nehemia_bett_dan', 'input_boolean.nehemia_bett_caleb')
+         | selectattr('state', 'eq', 'on') | list %}
+      {{ w is not none and w.state == 'off' and im_bett | count > 0
+         and (jetzt - w.last_changed).total_seconds() >= gn
+         and (jetzt - (im_bett | map(attribute='last_changed') | min)).total_seconds() >= gn }}
+  - id: leer
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung  # Gesamt
+    from: "on"
+    to: "off"
+    for: "{{ states('input_number.nehemia_leerzeit_zimmer') | int(600) }}"
+  # Liegt beim Gesamt-Aus jemand im Bett (Schlaefer werden bis 48 min verloren): 3x so lang
+  - id: leer_lang
+    trigger: state
+    entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung
+    not_from: *weg
+    to: "off"
+    for: >-
+      {{ states('input_number.nehemia_leerzeit_lang') | int(20) * 60
+         * (3 if is_state('input_boolean.nehemia_bett_dan', 'on')
+                 or is_state('input_boolean.nehemia_bett_caleb', 'on') else 1) }}
+  - id: lampe_aus_schrank
+    trigger: state
+    entity_id: light.hue_white_lamp_1
+    from: "on"
+    to: "off"
+  - id: lampe_aus_sofa
+    trigger: state
+    entity_id: light.hue_white_lamp_2
+    from: "on"
+    to: "off"
+  - id: lampe_aus_tuer
+    trigger: state
+    entity_id: light.zimmer_nehemia_tur_licht
+    from: "on"
+    to: "off"
+  - id: lampe_zurueck
+    trigger: state
+    entity_id:
+      - light.hue_white_lamp_1
+      - light.hue_white_lamp_2
+      - light.zimmer_nehemia_tur_licht
+    from: unavailable
+  - id: lampe_zurueck
+    trigger: state
+    entity_id: binary_sensor.nehemia_tuerlicht_erreichbar
+    to: "on"
+  # Lampe laenger weg (ausgesteckt/offline): sofort neu rechnen, damit die Ersatzlampe greift
+  - id: lampe_weg
+    trigger: state
+    entity_id:
+      - light.hue_white_lamp_1
+      - light.hue_white_lamp_2
+      - light.zimmer_nehemia_tur_licht
+    to: unavailable
+    for: 61
+  - id: start
+    trigger: homeassistant
+    event: start
+actions:
+  # 1) Seiteneffekte je nach Ausloeser
+  - choose:
+      - alias: Zimmer leer (Tuer bewegt) oder lange leer - alles aus
+        conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: leer_lang
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: leer
+                  - >-
+                    {{ (now() - states['binary_sensor.myggbett_door_window_sensor_tur_2'].last_changed).total_seconds()
+                       < states('input_number.nehemia_leerzeit_zimmer') | float(600) + 300 }}
+        sequence:
+          - action: media_player.media_stop
+            target:
+              entity_id: media_player.nehemia_homepod
+            continue_on_error: true
+          - action: input_boolean.turn_off
+            target:
+              entity_id:
+                - input_boolean.nehemia_bett_dan
+                - input_boolean.nehemia_bett_caleb
+          - action: input_select.select_option
+            target:
+              entity_id:
+                - input_select.nehemia_modus_schrank
+                - input_select.nehemia_modus_sofa
+                - input_select.nehemia_modus_tuerlicht
+            data:
+              option: automatik
+          - action: light.turn_off
+            target:
+              entity_id:
+                - light.hue_white_lamp_1
+                - light.hue_white_lamp_2
+            data:
+              transition: 3
+            continue_on_error: true
+          # Matter-Tuerlicht nie blockierend aus dem queued-Lauf schalten
+          - action: script.turn_on
+            target:
+              entity_id: script.nehemia_tuerlicht_setzen
+            data:
+              variables:
+                an: false
+          - stop: Zimmer leer
+      - alias: Gesamt aus, aber Tuer nicht bewegt - vermutlich Radar-Aussetzer
+        conditions:
+          - condition: trigger
+            id: leer
+        sequence:
+          - stop: Radar-Aussetzer, nichts tun
+      - alias: Schranklicht von Automation/Skript aus - manuell_an beenden
+        conditions:
+          - condition: trigger
+            id: lampe_aus_schrank
+          - condition: state
+            entity_id: input_select.nehemia_modus_schrank
+            state: manuell_an
+          - "{{ trigger.to_state.context.parent_id is not none }}"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_schrank
+            data:
+              option: automatik
+          - stop: Modus Schrank zurueck auf automatik
+      - alias: Sofalicht von Automation/Skript aus - manuell_an beenden
+        conditions:
+          - condition: trigger
+            id: lampe_aus_sofa
+          - condition: state
+            entity_id: input_select.nehemia_modus_sofa
+            state: manuell_an
+          - "{{ trigger.to_state.context.parent_id is not none }}"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_sofa
+            data:
+              option: automatik
+          - stop: Modus Sofa zurueck auf automatik
+      - alias: Tuerlicht von Automation/Skript aus - manuell_an beenden
+        conditions:
+          - condition: trigger
+            id: lampe_aus_tuer
+          - condition: state
+            entity_id: input_select.nehemia_modus_tuerlicht
+            state: manuell_an
+          - "{{ trigger.to_state.context.parent_id is not none }}"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_tuerlicht
+            data:
+              option: automatik
+          - stop: Modus Tuer zurueck auf automatik
+      - alias: Sonst bei Lampe aus nichts tun
+        conditions:
+          - condition: trigger
+            id:
+              - lampe_aus_schrank
+              - lampe_aus_sofa
+              - lampe_aus_tuer
+        sequence:
+          - stop: Lampe aus
+      - alias: Bett Caleb entprellt belegt
+        conditions:
+          - condition: trigger
+            id: bett_rein_caleb
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.nehemia_bett_caleb
+      - alias: Bett Dan entprellt belegt
+        conditions:
+          - condition: trigger
+            id: bett_rein_dan
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.nehemia_bett_dan
+      # Merker nur loeschen, wenn Aufstehen belegt ist (Wachzone/Tuer hat sich seit dem
+      # Abfallen der Bettzone veraendert oder eine Wachzone ist an). Sonst hat das Radar
+      # nur den Schlaefer verloren und der Merker bleibt.
+      - alias: Bett Caleb entprellt frei (Aufstehen belegt)
+        conditions:
+          - condition: trigger
+            id: bett_raus_caleb
+          - >-
+            {% set aus = states['binary_sensor.spatial_multi_sensor_fp400_belegung_4'].last_changed %}
+            {% set ns = namespace(n=0) %}
+            {% for s in expand('binary_sensor.spatial_multi_sensor_fp400_belegung_2',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_3',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_6',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_7',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_8',
+                               'binary_sensor.myggbett_door_window_sensor_tur_2') %}
+              {% if s.last_changed >= aus or (s.state == 'on' and 'belegung' in s.entity_id) %}
+                {% set ns.n = ns.n + 1 %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n > 0 }}
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nehemia_bett_caleb
+      # Zone 8 (Raum Mitte) zaehlt bei Dan nicht, sie ueberlappt sein Bett
+      - alias: Bett Dan entprellt frei (Aufstehen belegt)
+        conditions:
+          - condition: trigger
+            id: bett_raus_dan
+          - >-
+            {% set aus = states['binary_sensor.spatial_multi_sensor_fp400_belegung_5'].last_changed %}
+            {% set ns = namespace(n=0) %}
+            {% for s in expand('binary_sensor.spatial_multi_sensor_fp400_belegung_2',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_3',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_6',
+                               'binary_sensor.spatial_multi_sensor_fp400_belegung_7',
+                               'binary_sensor.myggbett_door_window_sensor_tur_2') %}
+              {% if s.last_changed >= aus or (s.state == 'on' and 'belegung' in s.entity_id) %}
+                {% set ns.n = ns.n + 1 %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n > 0 }}
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nehemia_bett_dan
+  # 2) Werte berechnen. Jeder Schritt liest nur Werte aus frueheren Schritten.
+  - alias: Basiswerte
+    variables:
+      nachlauf: "{{ states('input_number.nehemia_nachlaufzeit_zonenwechsel') | float(300) }}"
+      freigabe: "{{ states('input_number.nehemia_bettschutz_freigabezeit') | float(60) }}"
+      hell: "{{ states('input_number.nehemia_helligkeit_normal') | int(50) }}"
+      neben: "{{ states('input_number.nehemia_helligkeit_nebenlampe') | int(10) }}"
+      bett_hell: "{{ states('input_number.nehemia_helligkeit_bett') | int(8) }}"
+      s_an: "{{ is_state('light.hue_white_lamp_1', 'on') }}"
+      f_an: "{{ is_state('light.hue_white_lamp_2', 'on') }}"
+      t_an: "{{ is_state('light.zimmer_nehemia_tur_licht', 'on') }}"
+      ist_s: "{{ ((state_attr('light.hue_white_lamp_1', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
+      ist_f: "{{ ((state_attr('light.hue_white_lamp_2', 'brightness') | int(0)) / 2.55) | round(0) | int }}"
+      # *_da = Lampe vorhanden. Hue-Aussetzer bis 60 s zaehlen nicht als weg.
+      s_da: >-
+        {% set s = states.light.hue_white_lamp_1 %}
+        {{ s is not none and not (s.state in ['unavailable', 'unknown']
+           and (now() - s.last_changed).total_seconds() > 60) }}
+      f_da: >-
+        {% set s = states.light.hue_white_lamp_2 %}
+        {{ s is not none and not (s.state in ['unavailable', 'unknown']
+           and (now() - s.last_changed).total_seconds() > 60) }}
+      # Tuerlicht gilt erst nach 15 min stabiler Verbindung als erreichbar
+      t_da: "{{ is_state('binary_sensor.nehemia_tuerlicht_erreichbar', 'on') }}"
+      bett_dan: "{{ is_state('input_boolean.nehemia_bett_dan', 'on') }}"
+      bett_caleb: "{{ is_state('input_boolean.nehemia_bett_caleb', 'on') }}"
+      # Rohzone an, oder Merker gehalten und Rohzone schon laenger als Bett-Nachlauf aus (= liegt)
+      roh_dan: >-
+        {% set e = states.binary_sensor.spatial_multi_sensor_fp400_belegung_5 %}
+        {{ e.state == 'on' or (is_state('input_boolean.nehemia_bett_dan', 'on')
+           and (now() - e.last_changed).total_seconds() >= states('input_number.nehemia_bett_nachlauf') | float(90) - 1) }}
+      roh_caleb: >-
+        {% set e = states.binary_sensor.spatial_multi_sensor_fp400_belegung_4 %}
+        {{ e.state == 'on' or (is_state('input_boolean.nehemia_bett_caleb', 'on')
+           and (now() - e.last_changed).total_seconds() >= states('input_number.nehemia_bett_nachlauf') | float(90) - 1) }}
+      bett_geaendert_vor: >-
+        {{ (now() - (expand('input_boolean.nehemia_bett_dan', 'input_boolean.nehemia_bett_caleb')
+            | map(attribute='last_changed') | max)).total_seconds() }}
+      # Abstand der Merker-Schaltzeiten; < 60 s = eine Person zwischen den Betten ("Zwilling")
+      merker_abstand: >-
+        {{ (as_timestamp(states.input_boolean.nehemia_bett_dan.last_changed)
+            - as_timestamp(states.input_boolean.nehemia_bett_caleb.last_changed)) | abs }}
+  - alias: Zonen und Bett
+    variables:
+      # z_* = jetzt belegt; h_* = belegt oder vor weniger als Nachlaufzeit noch belegt (halten)
+      z_s: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_2', 'on') }}"
+      z_f: "{{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_3', 'on') }}"
+      z_m: >-
+        {{ is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_6', 'on')
+           or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_7', 'on')
+           or is_state('binary_sensor.spatial_multi_sensor_fp400_belegung_8', 'on') }}
+      h_s: >-
+        {% set e = 'binary_sensor.spatial_multi_sensor_fp400_belegung_2' %}
+        {{ is_state(e, 'on') or (now() - states[e].last_changed).total_seconds() < nachlauf - 1 }}
+      h_f: >-
+        {% set e = 'binary_sensor.spatial_multi_sensor_fp400_belegung_3' %}
+        {{ is_state(e, 'on') or (now() - states[e].last_changed).total_seconds() < nachlauf - 1 }}
+      h_m: >-
+        {% set ns = namespace(h=false) %}
+        {% for e in ['binary_sensor.spatial_multi_sensor_fp400_belegung_6',
+                     'binary_sensor.spatial_multi_sensor_fp400_belegung_7',
+                     'binary_sensor.spatial_multi_sensor_fp400_belegung_8'] %}
+          {% if is_state(e, 'on') or (now() - states[e].last_changed).total_seconds() < nachlauf - 1 %}
+            {% set ns.h = true %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.h }}
+      bett: "{{ bett_dan or bett_caleb }}"
+      # beide nur, wenn die Merker nicht gleichzeitig angingen (Zwilling) oder seit 10 min stabil sind
+      beide: "{{ bett_dan and bett_caleb and (merker_abstand > 60 or bett_geaendert_vor > 600) }}"
+      geist: >-
+        {{ bett_dan and bett_caleb and (merker_abstand > 60 or bett_geaendert_vor > 600)
+           and roh_dan and roh_caleb }}
+      bettschutz: "{{ bett_dan or bett_caleb or bett_geaendert_vor < freigabe }}"
+      gute_nacht: "{{ (trigger.id | default('')) == 'gute_nacht' and (bett_dan or bett_caleb) }}"
+  - alias: Ist jemand wach?
+    variables:
+      wach: "{{ z_s or z_f or z_m }}"
+      wach_eff: "{{ (z_s or z_f or z_m) and not geist }}"
+      wach_halten: "{{ h_s or h_f or h_m }}"
+  # ziel: Prozent; 0 = aus; -1 = so lassen
+  # Beide liegen sicher (geist) -> sofort aus. Ist eine Rohbettzone frei (jemand steht auf),
+  # wird gehalten solange Zonen nachlaufen. Beim Halten mit Bettschutz wird trotzdem gedimmt.
+  - alias: Sollhelligkeit je Lampe
+    variables:
+      ziel_s: >-
+        {% if gute_nacht or (beide and not wach_eff and (geist or not wach_halten)) %}0
+        {% elif wach_eff and bettschutz %}{{ bett_hell if (z_s or (s_an and h_s)) else 0 }}
+        {% elif wach_eff %}{{ hell if (z_s or z_m) else (-1 if (s_an and (h_s or h_m)) else (neben if s_an else 0)) }}
+        {% elif wach_halten %}{{ bett_hell if (bettschutz and s_an and ist_s > bett_hell + 1) else -1 }}
+        {% elif bett %}{{ (bett_hell if ist_s > bett_hell + 1 else -1) if s_an else 0 }}
+        {% else %}-1{% endif %}
+      ziel_f: >-
+        {% if gute_nacht or (beide and not wach_eff and (geist or not wach_halten)) %}0
+        {% elif wach_eff and bettschutz %}{{ bett_hell if (z_f or z_m or (f_an and (h_f or h_m))) else 0 }}
+        {% elif wach_eff %}{{ hell if (z_f or z_m) else (-1 if (f_an and (h_f or h_m)) else (neben if f_an else 0)) }}
+        {% elif wach_halten %}{{ bett_hell if (bettschutz and f_an and ist_f > bett_hell + 1) else -1 }}
+        {% elif bett %}{{ (bett_hell if ist_f > bett_hell + 1 else -1) if f_an else 0 }}
+        {% else %}-1{% endif %}
+      ziel_t: >-
+        {% if gute_nacht or not bettschutz %}0
+        {% elif wach %}1
+        {% elif wach_halten %}-1
+        {% else %}0{% endif %}
+  # Ersatz: fehlt eine Lampe, uebernimmt die andere ihre Rolle. Fehlt das Tuerlicht,
+  # gibt das Fenster 1 % Orientierung (und raeumt dieses 1 % wieder auf).
+  - alias: Ersatzlampen
+    variables:
+      ziel_f2: >-
+        {% set zf = ziel_f | int %}{% set zs = ziel_s | int %}{% set zt = ziel_t | int %}
+        {% if not s_da and zs > 0 and is_state('input_select.nehemia_modus_schrank', 'automatik') %}
+          {% set zf = [zf, zs] | max %}
+        {% endif %}
+        {% set tuer_ersatz = not t_da and is_state('input_select.nehemia_modus_tuerlicht', 'automatik') %}
+        {% if tuer_ersatz and zt > 0 and (zf == 0 or (zf == -1 and not f_an)) %}
+          {% set zf = 1 %}
+        {% elif f_an and zf == -1 and ist_f <= 2 and ist_f < bett_hell
+                and ((tuer_ersatz and zt == 0) or (t_da and t_an)) %}
+          {% set zf = 0 %}
+        {% endif %}
+        {{ zf }}
+      ziel_s2: >-
+        {% set zs = ziel_s | int %}{% set zf = ziel_f | int %}
+        {% if not f_da and zf > 0 and is_state('input_select.nehemia_modus_sofa', 'automatik') %}
+          {% set zs = [zs, zf] | max %}
+        {% endif %}
+        {{ zs }}
+  - alias: Tagsueber nichts schalten
+    if:
+      - condition: state
+        entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
+        state: "off"
+      - condition: not
+        conditions:
+          - condition: trigger
+            id: gute_nacht
+    then:
+      - stop: Hell - Automatik schaltet nichts
+  # 3) Lampen schalten (nur im Modus automatik und wenn erreichbar)
+  - alias: Schranklicht
+    if:
+      - condition: state
+        entity_id: input_select.nehemia_modus_schrank
+        state: automatik
+      - "{{ has_value('light.hue_white_lamp_1') }}"
+    then:
+      - choose:
+          - conditions:
+              - "{{ ziel_s2 | int == 0 and s_an }}"
+            sequence:
+              - action: light.turn_off
+                target:
+                  entity_id: light.hue_white_lamp_1
+                data:
+                  transition: 3
+                continue_on_error: true
+          - conditions:
+              - "{{ ziel_s2 | int > 0 and (not s_an or (ist_s - ziel_s2 | int) | abs > 1) }}"
+            sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.hue_white_lamp_1
+                data:
+                  brightness_pct: "{{ ziel_s2 | int }}"
+                  transition: 1
+                continue_on_error: true
+  - alias: Sofa-/Fensterlicht
+    if:
+      - condition: state
+        entity_id: input_select.nehemia_modus_sofa
+        state: automatik
+      - "{{ has_value('light.hue_white_lamp_2') }}"
+    then:
+      - choose:
+          - conditions:
+              - "{{ ziel_f2 | int == 0 and f_an }}"
+            sequence:
+              - action: light.turn_off
+                target:
+                  entity_id: light.hue_white_lamp_2
+                data:
+                  transition: 3
+                continue_on_error: true
+          - conditions:
+              - "{{ ziel_f2 | int > 0 and (not f_an or (ist_f - ziel_f2 | int) | abs > 1) }}"
+            sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.hue_white_lamp_2
+                data:
+                  brightness_pct: "{{ ziel_f2 | int }}"
+                  transition: 1
+                continue_on_error: true
+  # Matter-Tuerlicht nur ueber das Skript (blockiert nicht). Aus immer, an nur wenn stabil erreichbar.
+  - alias: Tuerlicht (Orientierung nur im Bett-Modus)
+    if:
+      - condition: state
+        entity_id: input_select.nehemia_modus_tuerlicht
+        state: automatik
+    then:
+      - choose:
+          - conditions:
+              - "{{ ziel_t | int == 0 and t_an }}"
+            sequence:
+              - action: script.turn_on
+                target:
+                  entity_id: script.nehemia_tuerlicht_setzen
+                data:
+                  variables:
+                    an: false
+          - conditions:
+              - "{{ t_da and ziel_t | int > 0 and not t_an }}"
+            sequence:
+              - action: script.turn_on
+                target:
+                  entity_id: script.nehemia_tuerlicht_setzen
+                data:
+                  variables:
+                    an: true
