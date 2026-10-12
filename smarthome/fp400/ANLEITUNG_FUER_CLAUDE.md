@@ -65,7 +65,9 @@ Lampen:
    - Fehlt eine Lampe länger als 60 s (ausgesteckt/offline), übernimmt die andere ihre Rolle.
    - Ist das Türlicht nicht erreichbar, gibt das Fenster 1 % Orientierung und räumt sie wieder auf.
    - Eine Lampe im Modus `manuell_aus` wird nicht ersetzt.
-7. **Matter nie blockierend.** Das Türlicht nur über `script.turn_on` auf `script.nehemia_tuerlicht_setzen` schalten. Ein direkter Aufruf hängt bei halb erreichbarem Gerät 37 s und staut die ganze Automation (11.10. 00:45–00:48: 3,5 min).
+7. **Sensor-Neuverbindung ist kein Ereignis.** `bett_rein_*`, `bett_raus_*` und `leer_lang` haben `not_from: [unavailable, unknown]`. Am 12.10. um 05:33 waren alle Zonen 0,3 s weg, danach wurde Dans Merker fälschlich gelöscht.
+8. **Kurze Neuberechnung.** `zone_aus_kurz` rechnet 30 s nach dem Ende einer Wachzone neu. So geht das 1-%-Orientierungslicht nach Fehl-Blips nach 30 s aus statt nach 5 min. Gehaltene Lampen bleiben, denn `h_*` hält die volle Nachlaufzeit.
+9. **Matter nie blockierend.** Das Türlicht nur über `script.turn_on` auf `script.nehemia_tuerlicht_setzen` schalten. Ein direkter Aufruf hängt bei halb erreichbarem Gerät 37 s und staut die ganze Automation (11.10. 00:45–00:48: 3,5 min).
 
 ## Verhalten (bei Dunkelheit)
 
@@ -104,8 +106,8 @@ Lampen:
 
 1. Keine zweite Automation für dieselben Lampen anlegen.
 2. In einem `- variables:`-Schritt darf keine Variable eine andere aus demselben Schritt lesen (HA sortiert die Schlüssel). Abgeleitete Werte gehören in einen späteren Schritt.
-3. Helligkeiten und Zeiten über die `input_number`-Helfer ändern. Feste Konstanten im Code sind nur der Zwillingsschutz (60 s / 600 s), die Hue-Karenz (60 s) und `lampe_weg` (61 s).
-4. **Vor dem Einspielen** die `ziel_*`-Templates gegen die Szenario-Matrix testen. Es sind 33 Fälle, darunter die Nacht 10./11.10.:
+3. Helligkeiten und Zeiten über die `input_number`-Helfer ändern. Feste Konstanten im Code sind nur der Zwillingsschutz (60 s / 600 s), die Hue-Karenz (60 s), `lampe_weg` (61 s) und `zone_aus_kurz` (30 s).
+4. **Vor dem Einspielen** die `ziel_*`-Templates gegen die Szenario-Matrix testen. Es sind 35 Fälle, darunter die Nacht 10./11.10.:
 
 | Fall | Erwartung |
 |---|---|
@@ -122,6 +124,7 @@ Lampen:
    - `run_actions` ausführen und im Trace prüfen, dass alle Variablen gesetzt sind.
    - Im System-Log dürfen keine „undefined“-Warnungen stehen.
    - Die Live-Config muss gleich der Repo-YAML sein.
-6. Repo-YAML immer mit `id: "1791637610981"` pflegen, damit ein Einspielen die bestehende Automation ersetzt und keine zweite anlegt.
-7. Für Rückblicke das Logbuch mit `compact=false` nutzen (zeigt, welcher Trigger geschaltet hat; ohne Context = manuell) und die Traces (`stored_traces: 300`, reicht für etwa eine Nacht).
-8. Backup der alten (gelöschten) Automationen: `backup_alte_automationen.json`.
+6. Wird die Automation im HA-Editor gespeichert, schreibt HA Template-Bedingungen in die Langform (`condition: template`). Das ist gleichwertig zur Kurzform im Repo.
+7. Repo-YAML immer mit `id: "1791637610981"` pflegen, damit ein Einspielen die bestehende Automation ersetzt und keine zweite anlegt.
+8. Für Rückblicke das Logbuch mit `compact=false` nutzen (zeigt, welcher Trigger geschaltet hat; ohne Context = manuell) und die Traces (`stored_traces: 300`, reicht für etwa eine Nacht).
+9. Backup der alten (gelöschten) Automationen: `backup_alte_automationen.json`.

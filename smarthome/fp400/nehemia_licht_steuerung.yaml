@@ -32,24 +32,39 @@ triggers:
     from: "on"
     to: "off"
     for: "{{ states('input_number.nehemia_nachlaufzeit_zonenwechsel') | int(300) }}"
+  # Kurze Neuberechnung 30 s nach Zonen-Aus: nimmt das 1-%-Orientierungslicht (Tuer-Ersatz)
+  # nach Fehl-Blips wieder weg. Gehaltene Lampen bleiben, h_* haelt die volle Nachlaufzeit.
+  - id: zone_aus_kurz
+    trigger: state
+    entity_id: *wachzonen
+    from: "on"
+    to: "off"
+    for: 30
+  # Bett-/Leer-Trigger ignorieren Uebergaenge aus unavailable (FP400-Neuverbindung, 12.10. 05:33)
   - id: bett_rein_caleb
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_4  # Bett Caleb
+    not_from: &weg
+      - unavailable
+      - unknown
     to: "on"
     for: "{{ states('input_number.nehemia_bett_entprellung') | int(45) }}"
   - id: bett_rein_dan
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_5  # Bett Dan
+    not_from: *weg
     to: "on"
     for: "{{ states('input_number.nehemia_bett_entprellung') | int(45) }}"
   - id: bett_raus_caleb
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_4
+    not_from: *weg
     to: "off"
     for: "{{ states('input_number.nehemia_bett_nachlauf') | int(90) }}"
   - id: bett_raus_dan
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung_5
+    not_from: *weg
     to: "off"
     for: "{{ states('input_number.nehemia_bett_nachlauf') | int(90) }}"
   - id: bett_roh_aus
@@ -94,6 +109,7 @@ triggers:
   - id: leer_lang
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung
+    not_from: *weg
     to: "off"
     for: >-
       {{ states('input_number.nehemia_leerzeit_lang') | int(20) * 60
