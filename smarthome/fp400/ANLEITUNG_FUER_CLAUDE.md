@@ -22,7 +22,7 @@ Lampen:
 - `light.hue_white_lamp_2` = Sofa-/Fensterlicht (Hue).
 - `light.zimmer_nehemia_tur_licht` = Türlicht (Matter, nur Orientierung). Wird **nur** über `script.nehemia_tuerlicht_setzen` geschaltet.
 
-**Haltezeiten der FP400 (Aqara-App):** Bettzonen ≥ 10 s, Schrank 15 s, übrige Zonen 5–10 s. Am 11.10. um 00:53 wurden sie auf 1–5 s gesenkt, danach flatterten die Bettzonen. Werte nicht ändern ohne neuen Test.
+**Haltezeiten der FP400 (Aqara-App):** Bettzonen ≥ 10 s, Schrank 15 s, übrige Zonen 5–10 s. Am 11.10. um 00:53 wurden sie auf 1–5 s gesenkt, danach flatterten die Bettzonen. Seit 12.10. stehen sie wieder auf: `number.spatial_multi_sensor_fp400_haltezeit` (Gesamt) 10, `_2` 15, `_3` 10, `_4` 10, `_5` 10, `_6` 10, `_7` 10, `_8` 5. Werte nicht ändern ohne neuen Test.
 
 **Hue-Einschaltverhalten:** „Wiederherstellung nach Stromausfall“ einstellen und die Lampe vor dem Ausstecken ausschalten. Sonst kommt sie nach dem Einstecken mit 100 % zurück.
 
