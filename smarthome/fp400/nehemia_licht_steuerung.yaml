@@ -11,7 +11,9 @@ description: >-
   Ausgesteckte/offline Lampen werden von der anderen Lampe ersetzt. Das Tuerlicht gehoert
   bewusst nicht dazu; das 1-%-Orientierungslicht kommt vom Fenster (Ersatz: Schrank).
   Im Bett nur gedimmtes Licht, beide im Bett = aus (nur Orientierung 1 %).
-  Lampen mit Modus manuell_an/manuell_aus werden nicht angefasst.
+  Lampen mit Modus manuell_an/manuell_aus werden nicht angefasst. Hue-Aussetzer: HA verwirft
+  Befehle an unerreichbare Lampen, darum geht das Aus bei leer, leer_lang, Gute Nacht und
+  "beide liegen" dann zusaetzlich an die Hue-Gruppe light.schlafzimmer (nur Lampe 1+2).
 mode: queued
 max: 10
 max_exceeded: warning
@@ -230,6 +232,42 @@ actions:
             data:
               transition: 3
             continue_on_error: true
+          # Fallback Hue-Aussetzer (auch in leer und Schritt 4): HA verwirft Befehle an Lampen,
+          # die gerade unavailable sind. Die Hue-Raumgruppe light.schlafzimmer (darf nur Lampe
+          # 1+2 enthalten) bleibt erreichbar und schaltet per Groupcast. Nur wenn eine Lampe
+          # unerreichbar ist und jede Lampe automatik oder aus ist (manuell_* bleibt unberuehrt);
+          # immer nach den Einzelbefehlen. Ohne transition, sonst kommt die Lampe beim naechsten
+          # Einschalten ohne Helligkeit mit 1 %.
+          - &gruppe_aus
+            alias: Fallback - Hue-Gruppe aus bei unerreichbarer Lampe
+            if:
+              - condition: state
+                entity_id:
+                  - light.hue_white_lamp_1
+                  - light.hue_white_lamp_2
+                state: *weg
+                match: any
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity_id: input_select.nehemia_modus_schrank
+                    state: automatik
+                  - condition: state
+                    entity_id: light.hue_white_lamp_1
+                    state: "off"
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity_id: input_select.nehemia_modus_sofa
+                    state: automatik
+                  - condition: state
+                    entity_id: light.hue_white_lamp_2
+                    state: "off"
+            then:
+              - action: light.turn_off
+                target:
+                  entity_id: light.schlafzimmer
+                continue_on_error: true
           - stop: Zimmer lange leer
       # Kurzer Nachlauf: nur Licht aus. HomePod, Merker und Modi bleiben bis leer_lang,
       # damit ein unerkannter Zweiter hoechstens das Licht verliert.
@@ -254,6 +292,8 @@ actions:
                 data:
                   transition: 3
                 continue_on_error: true
+          # Lampe mit manuell_* nicht aus -> Groupcast erst in leer_lang (nach dem Modus-Reset)
+          - *gruppe_aus
           - stop: Zimmer leer - Licht aus
       - alias: Schranklicht von Automation/Skript aus - manuell_an beenden
         conditions:
@@ -434,20 +474,25 @@ actions:
       wach: "{{ z_s or z_f or z_m }}"
       wach_eff: "{{ (z_s or z_f or z_m) and not geist }}"
       wach_halten: "{{ h_s or h_f or h_m }}"
+  # alles_aus = Gute Nacht oder beide liegen: beide Lampen aus, egal wie hell sie sind.
+  # Eigener Schritt, damit ziel_s/ziel_f und der Gruppen-Fallback (Schritt 4) dasselbe lesen.
+  - alias: Alles aus?
+    variables:
+      alles_aus: "{{ gute_nacht or (beide and not wach_eff and (geist or not wach_halten)) }}"
   # ziel: Prozent; 0 = aus; -1 = so lassen. ziel_t = Orientierung (1 = 1 %-Licht noetig)
   # Beide liegen sicher (geist) -> sofort aus. Ist eine Rohbettzone frei (jemand steht auf),
   # wird gehalten solange Zonen nachlaufen. Beim Halten mit Bettschutz wird trotzdem gedimmt.
   - alias: Sollhelligkeit je Lampe
     variables:
       ziel_s: >-
-        {% if gute_nacht or (beide and not wach_eff and (geist or not wach_halten)) %}0
+        {% if alles_aus %}0
         {% elif wach_eff and bettschutz %}{{ bett_hell if (z_s or (s_an and h_s)) else 0 }}
         {% elif wach_eff %}{{ hell if (z_s or z_m) else (-1 if (s_an and (h_s or h_m)) else (neben if s_an else 0)) }}
         {% elif wach_halten %}{{ bett_hell if (bettschutz and s_an and ist_s > bett_hell + 1) else -1 }}
         {% elif bett %}{{ (bett_hell if ist_s > bett_hell + 1 else -1) if s_an else 0 }}
         {% else %}-1{% endif %}
       ziel_f: >-
-        {% if gute_nacht or (beide and not wach_eff and (geist or not wach_halten)) %}0
+        {% if alles_aus %}0
         {% elif wach_eff and bettschutz %}{{ bett_hell if (z_f or z_m or (f_an and (h_f or h_m))) else 0 }}
         {% elif wach_eff %}{{ hell if (z_f or z_m) else (-1 if (f_an and (h_f or h_m)) else (neben if f_an else 0)) }}
         {% elif wach_halten %}{{ bett_hell if (bettschutz and f_an and ist_f > bett_hell + 1) else -1 }}
@@ -550,3 +595,21 @@ actions:
                   brightness_pct: "{{ ziel_f2 | int }}"
                   transition: 1
                 continue_on_error: true
+  # 4) Fallback Hue-Aussetzer: Die Lampenbloecke ueberspringen unerreichbare Lampen. Bei
+  #    alles_aus ohne 1-%-Licht zusaetzlich die Hue-Gruppe (Bedingungen in &gruppe_aus).
+  #    Nicht bei "einer im Bett": Dort ist ziel 0 einer fehlenden Lampe nur geraten (s_an/f_an
+  #    falsch), sie kann gewollt gedimmt brennen. Gegen Dauersenden nur, solange die Bridge die
+  #    Gruppe als an meldet. Gute Nacht feuert einmal und sendet immer (Bridge-Stand kann
+  #    veraltet sein). Tagsueber kommt hier nur Gute Nacht an.
+  - alias: Hue-Gruppe aus bei alles aus
+    if:
+      - "{{ alles_aus and ziel_s2 | int == 0 and ziel_f2 | int == 0 }}"
+      - condition: or
+        conditions:
+          - condition: trigger
+            id: gute_nacht
+          - condition: state
+            entity_id: light.schlafzimmer
+            state: "on"
+    then:
+      - *gruppe_aus
