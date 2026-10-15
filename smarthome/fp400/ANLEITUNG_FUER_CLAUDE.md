@@ -81,7 +81,7 @@ Lampen:
 
 | Situation | Schranklicht | Fensterlicht |
 |---|---|---|
-| Wach am Sofa | Nebenlampe (nur wenn an und nicht mehr im Nachlauf) | normal |
+| Wach am Sofa | normal (seit 15.10., Wunsch: beide 50 %) | normal |
 | Wach am Schrank | normal | Nebenlampe (dito) |
 | Wach in Mitte / Gang / iPad | normal | normal |
 | Einer im Bett + anderer am Schrank | Bett-Helligkeit | 1 % |

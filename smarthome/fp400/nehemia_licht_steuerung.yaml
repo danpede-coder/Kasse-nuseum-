@@ -487,7 +487,7 @@ actions:
       ziel_s: >-
         {% if alles_aus %}0
         {% elif wach_eff and bettschutz %}{{ bett_hell if (z_s or (s_an and h_s)) else 0 }}
-        {% elif wach_eff %}{{ hell if (z_s or z_m) else (-1 if (s_an and (h_s or h_m)) else (neben if s_an else 0)) }}
+        {% elif wach_eff %}{{ hell if (z_s or z_f or z_m) else (-1 if (s_an and (h_s or h_f or h_m)) else (neben if s_an else 0)) }}
         {% elif wach_halten %}{{ bett_hell if (bettschutz and s_an and ist_s > bett_hell + 1) else -1 }}
         {% elif bett %}{{ (bett_hell if ist_s > bett_hell + 1 else -1) if s_an else 0 }}
         {% else %}-1{% endif %}
