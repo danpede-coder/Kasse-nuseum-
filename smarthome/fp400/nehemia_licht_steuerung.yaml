@@ -6,8 +6,8 @@ description: >-
   FP400-Rauschen: Lampen werden gehalten solange ihre Zone kuerzlich aktiv war,
   Betten zaehlen erst entprellt (Merker, gehalten solange kein Aufstehen belegt ist),
   gleichzeitig angesprungene Bettzonen zaehlen nicht als "beide". "Zimmer leer" schaltet
-  nach Gesamt-Aus je nach letzter Zone nur das Licht aus (sonst 2 min, Sofa 10 min, Bett/
-  Merker/Tuer zu und ruhig 60 min); HomePod, Merker und Modi erst nach langer Leere.
+  2 min nach Gesamt-Aus nur das Licht aus; HomePod, Merker und Modi erst nach langer Leere
+  (20 min, bei Bett/Merker/Tuer zu und ruhig 60 min).
   Ausgesteckte/offline Lampen werden von der anderen Lampe ersetzt. Das Tuerlicht gehoert
   bewusst nicht dazu; das 1-%-Orientierungslicht kommt vom Fenster (Ersatz: Schrank).
   Im Bett nur gedimmtes Licht, beide im Bett = aus (nur Orientierung 1 %).
@@ -102,46 +102,21 @@ triggers:
       {{ w is not none and w.state == 'off' and im_bett | count > 0
          and (jetzt - w.last_changed).total_seconds() >= gn
          and (jetzt - (im_bett | map(attribute='last_changed') | min)).total_seconds() >= gn }}
-  # Zimmer leer: Nachlauf nach Gesamt-Aus je nach letzter Zone (Zeiten als Helfer):
-  #   Bett-Merker an, letzte Zone Bett (_4/_5) oder Tuer zu und seit tuer_ruhezeit unbewegt
-  #     -> leerzeit_lang x3 (Liegende werden bis 48 min verloren)
-  #   letzte Zone Sofa (_3) -> leerzeit_sofa (Sitzende werden bis 17 min verloren)
-  #   sonst -> leerzeit_zimmer
-  # Letzte Zone = noch belegte Zone (3/7 fallen 0,2-1 s NACH Gesamt ab), sonst juengstes
-  # last_changed. Das for-Template wird beim Gesamt-Aus EINMAL gerendert.
-  # Der Block bis "set w" ist in leer und leer_lang identisch und muss es bleiben.
+  # Zimmer leer: Licht aus nach leerzeit_zimmer (2 min) ab Gesamt-Aus, egal welche Zone zuletzt
+  # belegt war (Wunsch 15.10.: "ueberall 2 min"; bewusst in Kauf genommen: Sofa-Sitzende und
+  # Liegende, die das Radar verliert, sitzen bis zur naechsten Bewegung im Dunkeln).
   - id: leer
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung  # Gesamt
     not_from: *weg
     to: "off"
-    for: >-
-      {% set zonen = expand('binary_sensor.spatial_multi_sensor_fp400_belegung_2',
-                            'binary_sensor.spatial_multi_sensor_fp400_belegung_3',
-                            'binary_sensor.spatial_multi_sensor_fp400_belegung_4',
-                            'binary_sensor.spatial_multi_sensor_fp400_belegung_5',
-                            'binary_sensor.spatial_multi_sensor_fp400_belegung_6',
-                            'binary_sensor.spatial_multi_sensor_fp400_belegung_7',
-                            'binary_sensor.spatial_multi_sensor_fp400_belegung_8') | list %}
-      {% set an = zonen | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list %}
-      {% set letzte = an if an | count > 0
-         else (zonen | sort(attribute='last_changed') | map(attribute='entity_id') | list)[-1:] %}
-      {% set tuer = states.binary_sensor.myggbett_door_window_sensor_tur_2 %}
-      {% set tuer_ruhig = tuer is not none and tuer.state == 'off'
-         and (now() - tuer.last_changed).total_seconds()
-             >= states('input_number.nehemia_tuer_ruhezeit') | float(300) %}
-      {% set merker = is_state('input_boolean.nehemia_bett_dan', 'on')
-         or is_state('input_boolean.nehemia_bett_caleb', 'on') %}
-      {% set bett = letzte | select('in', ['binary_sensor.spatial_multi_sensor_fp400_belegung_4',
-                                           'binary_sensor.spatial_multi_sensor_fp400_belegung_5'])
-         | list | count > 0 %}
-      {% set lang = states('input_number.nehemia_leerzeit_lang') | float(20) * 60 %}
-      {% set w = lang * 3 if merker or bett or tuer_ruhig
-         else (states('input_number.nehemia_leerzeit_sofa') | float(600)
-               if 'binary_sensor.spatial_multi_sensor_fp400_belegung_3' in letzte
-               else states('input_number.nehemia_leerzeit_zimmer') | float(120)) %}
-      {{ w | int }}
-  # Lange leer: HomePod, Merker und Modi erst hier, nie vor dem Licht-Nachlauf: max(lang, w)
+    for: "{{ states('input_number.nehemia_leerzeit_zimmer') | int(120) }}"
+  # Lange leer: HomePod, Merker und Modi zuruecksetzen. Wartezeit je letzter Zone (Helfer):
+  #   Bett-Merker an, letzte Zone Bett (_4/_5) oder Tuer zu und seit tuer_ruhezeit unbewegt
+  #     -> leerzeit_lang x3 (Liegende werden bis 48 min verloren)
+  #   sonst -> max(leerzeit_lang, leerzeit_sofa bzw. leerzeit_zimmer)
+  # Letzte Zone = noch belegte Zone (3/7 fallen 0,2-1 s NACH Gesamt ab), sonst juengstes
+  # last_changed. Das for-Template wird beim Gesamt-Aus EINMAL gerendert.
   - id: leer_lang
     trigger: state
     entity_id: binary_sensor.spatial_multi_sensor_fp400_belegung
@@ -271,7 +246,7 @@ actions:
           - stop: Zimmer lange leer
       # Kurzer Nachlauf: nur Licht aus. HomePod, Merker und Modi bleiben bis leer_lang,
       # damit ein unerkannter Zweiter hoechstens das Licht verliert.
-      - alias: Zimmer leer (Nachlauf je letzter Zone) - nur Licht aus
+      - alias: Zimmer leer (2 min) - nur Licht aus
         conditions:
           - condition: trigger
             id: leer

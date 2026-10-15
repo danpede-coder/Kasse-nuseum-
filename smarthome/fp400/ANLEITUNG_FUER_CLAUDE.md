@@ -15,7 +15,7 @@ Ziel: Das Licht soll für zwei Personen (Dan, Caleb) im Alltag funktionieren. Es
 | Wand iPad | `…_belegung_7` | wach |
 | Raum Mitte (weiße Fläche) | `…_belegung_8` | wach |
 | Ausgang, Kante | – | kommen nicht über Matter in HA an |
-| Zimmertür | `binary_sensor.myggbett_door_window_sensor_tur_2` | „Zimmer leer“ (zu und ruhig = lange Leerzeit) und Beleg für Aufstehen |
+| Zimmertür | `binary_sensor.myggbett_door_window_sensor_tur_2` | „Lange leer“ (zu und ruhig = 60 min) und Beleg für Aufstehen |
 
 Lampen:
 - `light.hue_white_lamp_1` = Schranklicht (Hue). Wird zeitweise ausgesteckt, weil die Steckdose gebraucht wird.
@@ -43,10 +43,10 @@ Lampen:
 | `helligkeit_nebenlampe` | 10 % | |
 | `helligkeit_bett` | 8 % | Helligkeit, wenn jemand im Bett liegt. Bei Bedarf höher stellen. |
 | `nachlaufzeit_zonenwechsel` | 300 s | Deckt 81 % der Aussetzer in der Mitte und alle Schrank-Aussetzer ab. Mit 60 s ging das Licht aus, obwohl jemand da war. |
-| `leerzeit_zimmer` | 120 s | Licht-Nachlauf nach Gesamt-Aus, letzte Zone Schrank/Gang/iPad/Mitte. Wunsch 12.10.: Bei offener Tür blieb das Licht bis 20 min an. |
-| `leerzeit_sofa` | 600 s | Letzte Zone Sofa. Ausdrücklich gewählt, obwohl Sitzende bis 17 min verloren werden (3–4 Fehl-Aus in 3,6 Tagen). |
-| `tuer_ruhezeit` | 300 s | Tür zu und so lange unbewegt = jemand ist drin → lange Leerzeit. |
-| `leerzeit_lang` | 20 min | Dann HomePod-Stopp, Merker und Modi zurück. Bett-Merker, letzte Zone Bett oder Tür zu und ruhig: Licht erst nach dem Dreifachen (60 min), weil Liegende bis 48 min verloren werden. |
+| `leerzeit_zimmer` | 120 s | Licht-Nachlauf nach Gesamt-Aus, **immer** (Wunsch 15.10.: „überall 2 min“). Risiko gewählt: Sofa-Sitzende und Liegende, die das Radar verliert, sitzen bis zur nächsten Bewegung im Dunkeln (13.–15.10. wären es 2 Fälle gewesen). |
+| `leerzeit_sofa` | 600 s | Nur noch für `leer_lang` (letzte Zone Sofa). |
+| `tuer_ruhezeit` | 300 s | Nur noch für `leer_lang`: Tür zu und so lange unbewegt = jemand ist drin → 60 min. |
+| `leerzeit_lang` | 20 min | Dann HomePod-Stopp, Merker und Modi zurück. Bett-Merker, letzte Zone Bett oder Tür zu und ruhig: erst nach dem Dreifachen (60 min), weil Liegende bis 48 min verloren werden. |
 | `bettschutz_freigabezeit` | 60 s | |
 | `bett_entprellung` | 45 s | |
 | `bett_nachlauf` | 90 s | |
@@ -56,9 +56,9 @@ Lampen:
 
 1. **Sollzustand statt Ereignislogik.** Jeder Lauf berechnet Basiswerte → Zonen/Bett → wach → `alles_aus` → `ziel_*` → Ersatzlampen (`ziel_s2`/`ziel_f2`) und schaltet nur, wenn Soll und Ist auseinanderliegen (Prozent; 0 = aus; −1 = so lassen). `mode: queued`.
 2. **Halten statt Ausschalten.** Eine Lampe wird nicht ausgeschaltet, solange eine ihrer Zonen vor weniger als der Nachlaufzeit noch belegt war (`h_*`). Liegt jemand im Bett, wird beim Halten trotzdem auf die Bett-Helligkeit gedimmt.
-3. **Niemand wach und niemand im Bett → nichts ausschalten.** Ausschalten übernimmt nur „Zimmer leer“. Das `for`-Template von `leer` wird beim Gesamt-Aus einmal gerendert und wählt die Wartezeit nach der letzten Zone (noch an, sonst jüngstes `last_changed` von _2–_8):
-   - Merker an, Bettzone oder Tür zu und ruhig → `leerzeit_lang` ×3; Sofa → `leerzeit_sofa`; sonst `leerzeit_zimmer`.
-   - `leer` schaltet **nur das Licht** aus. `leer_lang` (nach max(`leerzeit_lang`, Wartezeit)) stoppt den HomePod und setzt Merker und Modi zurück.
+3. **Niemand wach und niemand im Bett → nichts ausschalten.** Ausschalten übernimmt nur „Zimmer leer“:
+   - `leer` schaltet **nur das Licht** aus, immer `leerzeit_zimmer` (2 min) nach Gesamt-Aus (seit 15.10., Wunsch des Nutzers).
+   - `leer_lang` stoppt den HomePod und setzt Merker und Modi zurück. Sein `for`-Template wird beim Gesamt-Aus einmal gerendert und wählt die Wartezeit nach der letzten Zone (noch an, sonst jüngstes `last_changed` von _2–_8): Merker an, Bettzone oder Tür zu und ruhig → `leerzeit_lang` ×3; sonst max(`leerzeit_lang`, `leerzeit_sofa` bzw. `leerzeit_zimmer`).
    - Jede Bewegung schaltet das Licht sofort wieder an. Eine offene Tür allein ist kein Beweis (80 % der Gesamt-Aus liefen bei offener Tür), daher keine Türbedingung.
 4. **„Beide im Bett“ nur echt.** Gehen beide Merker innerhalb von 60 s an, ist es meist eine Person zwischen den Betten („Zwilling“, 17 von 72 Starts). Das zählt erst nach 10 min als „beide“, auch nach einem HA-Neustart.
 5. **Geist / Nachtmodus.** Liegen beide sicher (Merker und Rohzonen, ein gehaltener Merker zählt als „liegt“), schaltet Bewegung nur das Orientierungslicht 1 %.
@@ -93,7 +93,7 @@ Lampen:
 | Schranklicht ausgesteckt | – | übernimmt Schrank-Sollwert |
 | Fensterlicht ausgesteckt/offline | übernimmt Fenster-Sollwert und 1 % | – |
 | Gute-Nacht-Zeit ohne Wache und jemand im Bett | aus | aus |
-| Zimmer leer (2 / 10 / 60 min je letzter Zone) | aus | aus |
+| Zimmer leer (2 min nach Gesamt-Aus) | aus | aus |
 | Lange leer (`leer_lang`) | + HomePod stopp, Modi und Merker zurücksetzen | |
 | Lampe unerreichbar (Hue-Aussetzer) bei leer, lange leer, Gute-Nacht, beide sicher | über `light.schlafzimmer` aus | dito |
 
@@ -107,7 +107,7 @@ Lampen:
 
 ## Bekannte Grenzen (Sensor, nicht Code)
 
-- **Sofa-Sitzende** verliert der FP400 6–17 min komplett, Gesamt ist dann auch aus. Dagegen hilft nur die Empfindlichkeit in der Aqara-App.
+- **Sofa-Sitzende** verliert der FP400 6–17 min komplett, Gesamt ist dann auch aus. Seit „überall 2 min“ geht das Licht dann nach 2 min aus und bei der nächsten Bewegung wieder an. Dagegen hilft nur die Empfindlichkeit in der Aqara-App.
 - **Raum Mitte (Zone 8)** überlappt Schrank und Bett Dan. Blips können nachts gedimmtes Licht bringen, wenn nur einer als liegend erkannt ist. Das Polygon in der Aqara-App korrigieren.
 - **Bett Gang** ragt in beide Betten (Zwillinge), auch das in der Aqara-App korrigieren.
 - **Morgens:** Liegt einer noch im Bett und der andere ist wach, aber von keiner Zone erkannt, schaltet Gute-Nacht nach 20 min aus (z. B. 11.10. 08:36). Eine Tageszeit-Regel gibt es bisher nicht; nur auf Wunsch einbauen. Eine dabei unerreichbare Lampe geht seit V6 über die Hue-Gruppe mit aus; eine Regel in der Variable `gute_nacht` gilt auch für den Fallback.
@@ -115,7 +115,7 @@ Lampen:
 - **Hue-Aussetzer (Gruppen-Fallback):**
   - Noch nicht bestätigt: ob der Groupcast eine Lampe mit `connectivity_issue` wirklich erreicht.
   - Die Bridge setzt die Lampen nach dem Gruppen-Aus sofort auf aus (13.10. 11:19). Geht der Groupcast verloren und meldet die Bridge beim Wiederverbinden nicht den echten Zustand, steht die Lampe in HA auf aus und brennt. Kein Trigger reagiert auf aus → an, Schritt 4 sendet bei Gruppe aus nicht erneut; nur `leer_lang` fängt das.
-  - Kein zweiter Versuch: Gute-Nacht feuert einmal, bei 60 min Wartezeit feuern `leer` und `leer_lang` gleichzeitig. Mögliche Erweiterung: bei `lampe_zurueck` im lange leeren Zimmer eine eingeschaltet zurückkehrende Lampe ausschalten.
+  - Kein zweiter Versuch: Gute-Nacht feuert einmal, `leer` nach 2 min auch. Mögliche Erweiterung: bei `lampe_zurueck` im lange leeren Zimmer eine eingeschaltet zurückkehrende Lampe ausschalten.
   - Brennt bei `leer` eine Lampe mit `manuell_*`, gibt es dort keinen Groupcast; `leer_lang` holt ihn nach dem Modus-Reset nach. Eine ausgesteckte Lampe mit `manuell_aus` blockiert Schritt 4 (Zustand unbekannt).
 
 ## Regeln für Änderungen
@@ -123,7 +123,7 @@ Lampen:
 1. Keine zweite Automation für dieselben Lampen anlegen.
 2. In einem `- variables:`-Schritt darf keine Variable eine andere aus demselben Schritt lesen (HA sortiert die Schlüssel). Abgeleitete Werte gehören in einen späteren Schritt.
 3. Helligkeiten und Zeiten über die `input_number`-Helfer ändern. Feste Konstanten im Code sind nur der Zwillingsschutz (60 s / 600 s), die Hue-Karenz (60 s), `lampe_weg` (61 s) und `zone_aus_kurz` (30 s).
-4. **Vor dem Einspielen** die `ziel_*`-Templates gegen die Szenario-Matrix testen. Es sind 31 Fälle, darunter die Nacht 10./11.10., dazu 12 Fälle für das `leer`-`for`-Template und 26 für den Gruppen-Fallback:
+4. **Vor dem Einspielen** die `ziel_*`-Templates gegen die Szenario-Matrix testen. Es sind 31 Fälle, darunter die Nacht 10./11.10., dazu 12 Fälle für das `leer_lang`-`for`-Template und 26 für den Gruppen-Fallback:
 
 | Fall | Erwartung |
 |---|---|
@@ -132,7 +132,8 @@ Lampen:
 | Geist | Fenster 1 % |
 | Geist + Fenster offline | Schrank 1 % |
 | Bewegung vorbei | 1 % weg |
-| `leer`: Zone 7, Tür offen / Sofa / Tür zu und ruhig / Merker | 120 / 600 / 3600 / 3600 s |
+| `leer`: jede Lage | 120 s |
+| `leer_lang`: Zone 7, Tür offen / Sofa / Tür zu und ruhig / Merker | 1200 / 1200 / 3600 / 3600 s |
 | Schrank ausgesteckt | Fenster übernimmt |
 | gehaltener Merker + Blip | nur 1 % |
 | `manuell_aus` | kein Ersatz |
