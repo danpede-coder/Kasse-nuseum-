@@ -33,7 +33,12 @@ Lampen:
   - Aus, wenn sie `bett_nachlauf` (90 s) lang frei ist **und** das Aufstehen belegt ist: Eine Wachzone oder die Tür hat sich seit dem Abfallen der Bettzone verändert, oder eine Wachzone ist an. Zonenwechsel zählen erst ab 2 s nach dem Bett-Aus, damit ein gleichzeitiger Radar-Ausfall nicht als Aufstehen gilt. Bei Dan zählt Zone 8 nicht, weil sie sein Bett überlappt.
   - Ohne Beleg bleibt der Merker an, denn das Radar hat dann nur den Schläfer verloren. Gelöscht wird er durch `leer_lang` oder das nächste belegte Aufstehen.
 - `binary_sensor.nehemia_jemand_wach` (Gruppe der Zonen 2, 3, 6, 7, 8): nur für den Gute-Nacht-Trigger.
-- Dunkel: `input_boolean.nehemia_dunkel_gespeicherter_status` (gesetzt von „Nehemia Dunkelstatus aktualisieren“, Lux 20/60).
+- Dunkel: `input_boolean.nehemia_dunkel_gespeicherter_status`, gesetzt von „Nehemia Dunkelstatus aktualisieren“ (`nehemia_dunkelstatus.yaml`, seit 17.10.: Lux + Sonnenstand + Regen):
+  - **Sonne hell:** `sun.sun` elevation über `sonne_hell_hoehe` (5°). Ausnahme Regen-Abend: `weather.forecast_home_2` meldet Regen/Schnee/Hagel, die Sonne sinkt (`rising` false) und steht unter `sonne_regen_hoehe` (10°).
+  - **Dunkel (an):** Lux unter `lux_dunkel_schwelle` (20) **und** (Sonne nicht hell **oder** Lux unter `lux_rollo_schwelle` (4) = Rollladen unten, von Hand, nicht in HA).
+  - **Hell (aus):** Lux über `lux_hell_schwelle` (60) **oder** (Sonne hell **und** Lux über 4).
+  - Dazwischen bleibt der Wert (Hysterese). Die 4-lx-Trigger sind entprellt (dunkel 1 min, hell 2 min).
+  - Grund: Der FP400 misst sehr wenig. An trüben Morgen zeigte er bei 5–9° nur 6–12 lx, mit Lux allein wurde es erst 1,5–3,8 h nach Sonnenaufgang „hell“. Dadurch ging das Licht am 15.–17.10. tagsüber an. Lampen erhöhen den Lux-Wert nicht.
 - Modi je Lampe: `input_select.nehemia_modus_{schrank,sofa}` = `automatik | manuell_an | manuell_aus`.
 - Zahlen (`input_number.nehemia_…`), Werte belegt durch die Daten vom 08.–11.10.:
 
@@ -51,6 +56,10 @@ Lampen:
 | `bett_entprellung` | 45 s | |
 | `bett_nachlauf` | 90 s | |
 | `gute_nacht_zeit` | 20 min | Nicht kürzer: Sofa-Sitzende werden bis 17 min verloren. |
+| `lux_dunkel_schwelle` / `lux_hell_schwelle` | 20 / 60 lx | Reine Lux-Grenzen (Hysterese). |
+| `lux_rollo_schwelle` | 4 lx | Darunter gilt der Rollladen als unten (Tag mit Rollladen unten ≈ 1 lx, offen trüb ≥ 6 lx). |
+| `sonne_hell_hoehe` | 5° | Ab hier zählt die Sonne als hell (≈ 40 min nach Sonnenaufgang). Abends wird es bei 3–4° dunkel. |
+| `sonne_regen_hoehe` | 10° | Bei Regen am Abend gilt die Sonne schon unter 10° nicht mehr als hell. |
 
 ## Grundprinzipien
 
