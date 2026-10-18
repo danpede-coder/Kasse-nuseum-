@@ -27,5 +27,9 @@ card_mod: { style: "<Glas-Stil wie die anderen Karten>" }
 
 - Am Ring ziehen stellt die Dauer ein. Der Knopf startet bzw. stoppt, bei laufendem Timer erscheint der Countdown.
 - `mode_entity` (optional) zeigt rechts oben Pillen für die Optionen des input_select. Die Ringfarbe folgt dem Modus (Heizen rot, Kühlen blau, über `mode_colors` änderbar, nur `#RRGGBB`). Solange der Timer läuft, sind die Pillen gesperrt.
-- Ohne `mode_entity` verhält sich die Karte wie die ursprüngliche Version.
+- Ohne `mode_entity` sieht die Karte aus wie die ursprüngliche Version.
+- Fehler der alten Version behoben (18.10.):
+  - Ein Tipp auf Start oder auf die Mitte hat vorher die Dauer verstellt (z. B. auf 6 h), in Chromium wurde dann gar nicht gestartet. Jetzt reagiert nur noch der Ring.
+  - Über 12 Uhr hinaus springt der Wert nicht mehr auf 0 bzw. das Maximum.
+  - Nach einem View-Wechsel läuft der Countdown weiter.
 - Nach einer Änderung am Code: Ressource mit `ha_config_set_dashboard_resource(content=…, resource_id=518ef…)` neu speichern und den Browser (iPad) neu laden.

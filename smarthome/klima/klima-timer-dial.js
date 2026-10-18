@@ -7,6 +7,7 @@ class KlimaTimerDial extends HTMLElement {
     this._dragMin = null;
     this._int = null;
     this._modeSig = null;
+    this._pin = null;
   }
   setConfig(cfg) {
     this._cfg = Object.assign({
@@ -28,6 +29,8 @@ class KlimaTimerDial extends HTMLElement {
     // card-mod sucht die Kartenkonfiguration unter _config
     this._config = this._cfg;
   }
+  // HA haengt Karten beim View-Wechsel ab und wieder an, ohne zwingend neues hass zu setzen
+  connectedCallback() { if (this._built && this._hass) this._update(); }
   disconnectedCallback() { this._stopTick(); }
   set hass(h) {
     this._hass = h;
@@ -114,14 +117,39 @@ class KlimaTimerDial extends HTMLElement {
   }
   _pd(e) {
     if (this._active()) return;
+    // Nur am Ring ziehen: Knopf und Mitte (Zeitanzeige) stellen nichts ein
+    if (e.target.closest && e.target.closest("#btn")) return;
+    const r = this.shadowRoot.getElementById("wrap").getBoundingClientRect();
+    const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) / (r.width / 2);
+    if (d < 0.6) return;
     this._drag = true;
+    this._pin = null;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
-    this._dragMin = this._angleToMin(e);
+    const cur = this._setMinutes();
+    const m = this._angleToMin(e);
+    const max = this._cfg.max_minutes;
+    // Tipp auf den Knopf behaelt den Wert (oben liegen 0 und max auf derselben Stelle)
+    const diff = Math.abs(m - cur);
+    this._dragMin = Math.min(diff, max - diff) <= max * 0.03 ? Math.min(cur, max) : m;
     this._update();
   }
   _pm(e) {
     if (!this._drag) return;
-    this._dragMin = this._angleToMin(e);
+    const prev = this._dragMin;
+    const max = this._cfg.max_minutes;
+    let m = this._angleToMin(e);
+    // Nicht ueber 12 Uhr hinweg springen: am Ende bzw. Anfang festhalten,
+    // bis der Finger in die passende Ringhaelfte zurueckkommt
+    if (this._pin === "max") {
+      if (m >= max * 0.5) this._pin = null; else m = max;
+    } else if (this._pin === "min") {
+      if (m <= max * 0.5) this._pin = null; else m = 0;
+    } else if (prev != null && prev > max * 0.75 && m < max * 0.25) {
+      this._pin = "max"; m = max;
+    } else if (prev != null && prev < max * 0.25 && m > max * 0.75) {
+      this._pin = "min"; m = 0;
+    }
+    this._dragMin = m;
     this._update();
   }
   _pu(e) {
