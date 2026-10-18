@@ -22,6 +22,7 @@ class KlimaTimerDial extends HTMLElement {
       name: "Klima Timer",
       compact: false,
       size: 0,
+      layout: "vertical",
       mode_entity: null,
       mode_colors: { "Heizen": "#FF453A", "Kühlen": "#0A84FF" },
       mode_icons: { "Heizen": "mdi:fire", "Kühlen": "mdi:snowflake" }
@@ -45,7 +46,42 @@ class KlimaTimerDial extends HTMLElement {
   }
   _build() {
     const k = !!this._cfg.compact;
-    const size = this._cfg.size > 0 ? this._cfg.size : (k ? 160 : 260);
+    // layout "horizontal": Ring links, Titel/Modus/Knopf rechts (wenig Hoehe)
+    const hz = this._cfg.layout === "horizontal";
+    const size = this._cfg.size > 0 ? this._cfg.size : (hz ? 150 : (k ? 160 : 260));
+    const top = `<div class="top"><ha-icon icon="mdi:timer-outline" style="--mdc-icon-size:${k ? "16px" : "20px"};color:var(--c);"></ha-icon><span id="nm"></span>${hz ? "" : '<div class="modes" id="modes"></div>'}</div>`;
+    const ring = `
+          <svg viewBox="0 0 200 200">
+            <g class="ticks" id="ticks"></g>
+            <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="10"/>
+            <circle id="arc" class="arc" cx="100" cy="100" r="84" fill="none" stroke-width="10" stroke-linecap="round" transform="rotate(-90 100 100)"/>
+            <circle id="knob" class="knob" r="9" fill="#fff"/>
+          </svg>`;
+    const body = hz ? `
+        <div class="hrow">
+          <div class="wrap" id="wrap">${ring}
+            <div class="center"><div class="time" id="time"></div><div class="sub" id="sub"></div></div>
+          </div>
+          <div class="side">${top}<div class="modes" id="modes"></div><button id="btn"></button></div>
+        </div>` : `
+        ${top}
+        <div class="wrap" id="wrap">${ring}
+          <div class="center">
+            <div class="time" id="time"></div>
+            <div class="sub" id="sub"></div>
+            <button id="btn"></button>
+          </div>
+        </div>`;
+    const hcss = hz ? `
+          ha-card{padding:12px 14px;}
+          .hrow{display:flex;align-items:center;gap:14px;}
+          .wrap{width:${size}px;margin:0;flex:none;}
+          .side{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+          .side .modes{margin-left:0;flex-direction:column;}
+          .side .pill{justify-content:center;font-size:13px;padding:5px 10px;}
+          .time{font-size:19px;}
+          .sub{display:none;}
+          #btn{margin-top:2px;padding:8px 12px;}` : "";
     this.shadowRoot.innerHTML = `
       <ha-card id="card">
         <style>
@@ -68,22 +104,8 @@ class KlimaTimerDial extends HTMLElement {
           .pill.on ha-icon{color:var(--pc);}
           .pill:disabled{cursor:default;opacity:.45;}
           .pill.on:disabled{opacity:.8;}
-          .ticks line{stroke:rgba(255,255,255,.16);stroke-width:2;stroke-linecap:round;}
-        </style>
-        <div class="top"><ha-icon icon="mdi:timer-outline" style="--mdc-icon-size:${k ? "16px" : "20px"};color:var(--c);"></ha-icon><span id="nm"></span><div class="modes" id="modes"></div></div>
-        <div class="wrap" id="wrap">
-          <svg viewBox="0 0 200 200">
-            <g class="ticks" id="ticks"></g>
-            <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="10"/>
-            <circle id="arc" class="arc" cx="100" cy="100" r="84" fill="none" stroke-width="10" stroke-linecap="round" transform="rotate(-90 100 100)"/>
-            <circle id="knob" class="knob" r="9" fill="#fff"/>
-          </svg>
-          <div class="center">
-            <div class="time" id="time"></div>
-            <div class="sub" id="sub"></div>
-            <button id="btn"></button>
-          </div>
-        </div>
+          .ticks line{stroke:rgba(255,255,255,.16);stroke-width:2;stroke-linecap:round;}${hcss}
+        </style>${body}
       </ha-card>`;
     let t = "";
     for (let i = 0; i < 12; i++) {

@@ -22,6 +22,7 @@ type: custom:klima-timer-dial
 name: Timer
 mode_entity: input_select.klima_timer_modus
 max_minutes: 720   # Ring = 12 h, jeder Strich = 1 h
+layout: horizontal # Ring links, Titel/Modus/Knopf rechts (≈ 175 px hoch, passt aufs iPad)
 card_mod: { style: "<Glas-Stil wie die anderen Karten>" }
 ```
 
