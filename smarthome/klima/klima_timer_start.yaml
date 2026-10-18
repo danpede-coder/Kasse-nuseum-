@@ -1,10 +1,10 @@
 # script.klima_timer_start (Repo-Kopie der Live-Config)
 alias: Klima Timer Start
 description: >-
-  Schaltet die Klimaanlage im Modus aus 'Klima Timer Modus' ein (Heizen = heat, Kühlen = cool)
-  und startet timer.klima_timer mit der Dauer aus den Slidern 'Klima Timer Stunden' + 'Klima Timer
-  Minuten'. Das Ausschalten übernimmt die Automation 'Klima Timer abgelaufen'. Startet nur, wenn
-  die Dauer > 0 ist.
+  Aus-Timer: startet timer.klima_timer mit der Dauer aus den Slidern 'Klima Timer Stunden' +
+  'Klima Timer Minuten'. Ist die Klimaanlage aus, wird sie im zuletzt genutzten Modus eingeschaltet;
+  läuft sie schon, bleibt ihr Modus unverändert (Modus am Thermostat). Das Ausschalten übernimmt die
+  Automation 'Klima Timer abgelaufen'. Startet nur, wenn die Dauer > 0 ist.
 icon: mdi:timer-play-outline
 mode: restart
 sequence:
@@ -16,24 +16,14 @@ sequence:
       - condition: numeric_state
         entity_id: input_number.klima_timer_min
         above: 0
-  - choose:
-      - alias: Kühlen
-        conditions:
-          - condition: state
-            entity_id: input_select.klima_timer_modus
-            state: Kühlen
-        sequence:
-          - action: climate.set_hvac_mode
-            target:
-              entity_id: climate.klimaanlage
-            data:
-              hvac_mode: cool
-    default:
-      - action: climate.set_hvac_mode
+  - if:
+      - condition: state
+        entity_id: climate.klimaanlage
+        state: "off"
+    then:
+      - action: climate.turn_on
         target:
           entity_id: climate.klimaanlage
-        data:
-          hvac_mode: heat
   - action: timer.start
     target:
       entity_id: timer.klima_timer
