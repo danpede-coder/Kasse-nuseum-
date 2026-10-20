@@ -1,0 +1,103 @@
+id: "1791573396229"
+alias: Nehemia Dunkelstatus aktualisieren
+description: >-
+  Haelt input_boolean.nehemia_dunkel_gespeicherter_status aktuell (Lux + Sonnenstand + Regen).
+  Sonne zaehlt als hell ab nehemia_sonne_hell_hoehe (5 Grad), ausser es regnet, die Sonne sinkt
+  und steht unter nehemia_sonne_regen_hoehe (10 Grad). DUNKEL: Lux unter Dunkel-Schwelle (20) und
+  (Sonne nicht hell oder Lux unter Rollo-Schwelle 4 = Rollladen unten). HELL: Lux ueber
+  Hell-Schwelle (60) oder (Sonne hell und Lux ueber 4). Dazwischen bleibt der Wert (Hysterese).
+  unknown/unavailable erfuellen keine Bedingung, Wert bleibt dann unveraendert.
+mode: queued
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+    below: input_number.nehemia_lux_dunkel_schwelle
+  - trigger: numeric_state
+    entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+    above: input_number.nehemia_lux_hell_schwelle
+  # Rollladen: entprellt gegen kurze Lux-Spruenge
+  - trigger: numeric_state
+    entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+    below: input_number.nehemia_lux_rollo_schwelle
+    for: "00:01:00"
+  - trigger: numeric_state
+    entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+    above: input_number.nehemia_lux_rollo_schwelle
+    for: "00:02:00"
+  - trigger: numeric_state
+    entity_id: sun.sun
+    attribute: elevation
+    above: input_number.nehemia_sonne_hell_hoehe
+  - trigger: numeric_state
+    entity_id: sun.sun
+    attribute: elevation
+    below: input_number.nehemia_sonne_hell_hoehe
+  - trigger: numeric_state
+    entity_id: sun.sun
+    attribute: elevation
+    below: input_number.nehemia_sonne_regen_hoehe
+  - trigger: state
+    entity_id: weather.forecast_home_2
+    to: null
+  - trigger: homeassistant
+    event: start
+actions:
+  - choose:
+      - alias: Dunkel
+        conditions:
+          - condition: numeric_state
+            entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+            below: input_number.nehemia_lux_dunkel_schwelle
+          - condition: or
+            conditions:
+              - condition: numeric_state
+                entity_id: sun.sun
+                attribute: elevation
+                below: input_number.nehemia_sonne_hell_hoehe
+              - alias: Regen-Abend
+                condition: and
+                conditions: &regen_abend
+                  - condition: state
+                    entity_id: weather.forecast_home_2
+                    state: [rainy, pouring, lightning-rainy, snowy, snowy-rainy, hail]
+                  - condition: state
+                    entity_id: sun.sun
+                    attribute: rising
+                    state: false
+                  - condition: numeric_state
+                    entity_id: sun.sun
+                    attribute: elevation
+                    below: input_number.nehemia_sonne_regen_hoehe
+              - alias: Rollladen unten
+                condition: numeric_state
+                entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+                below: input_number.nehemia_lux_rollo_schwelle
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
+      - alias: Hell
+        conditions:
+          - condition: or
+            conditions:
+              - condition: numeric_state
+                entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+                above: input_number.nehemia_lux_hell_schwelle
+              - alias: Sonne hell und Rollladen offen
+                condition: and
+                conditions:
+                  - condition: numeric_state
+                    entity_id: sensor.spatial_multi_sensor_fp400_beleuchtungsstarke
+                    above: input_number.nehemia_lux_rollo_schwelle
+                  - condition: numeric_state
+                    entity_id: sun.sun
+                    attribute: elevation
+                    above: input_number.nehemia_sonne_hell_hoehe
+                  - condition: not
+                    conditions:
+                      - condition: and
+                        conditions: *regen_abend
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
