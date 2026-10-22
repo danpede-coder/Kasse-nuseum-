@@ -1,7 +1,8 @@
 id: "1792689802036"
 alias: Licht · Manuell an erkannt (Siri/Hue-App)
 description: >-
-  Wird Schrank- oder Fensterlicht von Hand eingeschaltet (Siri/HomeKit, Hue-App, Schalter,
+  Wird Schrank- oder Fensterlicht von Hand eingeschaltet oder deutlich gedimmt (ab ~10 %,
+  nicht als Nachmeldung innerhalb 10 s nach einem Automations-Befehl) (Siri/HomeKit, Hue-App, Schalter,
   HA-App – erkennbar an leerer context.parent_id), geht der Modus der Lampe auf manuell_an.
   Die Lichtsteuerung fasst sie dann nicht mehr an, bis eine Automation/ein Skript sie
   ausschaltet oder das Zimmer lange leer ist (leer_lang).
@@ -18,9 +19,24 @@ triggers:
     from: "off"
     to: "on"
     id: sofa
+  # Helligkeit bei brennender Lampe (z. B. "Siri, Licht auf 100 %")
+  - trigger: state
+    entity_id: light.hue_white_lamp_1
+    attribute: brightness
+    id: schrank
+  - trigger: state
+    entity_id: light.hue_white_lamp_2
+    attribute: brightness
+    id: sofa
 conditions:
-  # Eigene Automationen/Skripte tragen immer eine parent_id
-  - "{{ trigger.to_state.context.parent_id is none }}"
+  # Eigene Automationen/Skripte tragen immer eine parent_id. Dimmen zaehlt ab 25/255 und nicht,
+  # wenn die vorige Aenderung < 10 s alt war und von einer Automation kam (Hue-Nachmeldung).
+  - >-
+    {{ trigger.to_state.context.parent_id is none and (trigger.from_state.state == 'off'
+    or (trigger.from_state.state == 'on' and trigger.to_state.state == 'on'
+    and ((trigger.to_state.attributes.brightness or 0) - (trigger.from_state.attributes.brightness or 0)) | abs >= 25
+    and not (trigger.from_state.context.parent_id is not none
+    and (trigger.to_state.last_updated - trigger.from_state.last_updated).total_seconds() < 10))) }}
 actions:
   - choose:
       - conditions:
