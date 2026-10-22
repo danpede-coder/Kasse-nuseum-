@@ -1,0 +1,43 @@
+id: "1792689802036"
+alias: Licht · Manuell an erkannt (Siri/Hue-App)
+description: >-
+  Wird Schrank- oder Fensterlicht von Hand eingeschaltet (Siri/HomeKit, Hue-App, Schalter,
+  HA-App – erkennbar an leerer context.parent_id), geht der Modus der Lampe auf manuell_an.
+  Die Lichtsteuerung fasst sie dann nicht mehr an, bis eine Automation/ein Skript sie
+  ausschaltet oder das Zimmer lange leer ist (leer_lang).
+mode: queued
+triggers:
+  # from: "off" -> Rueckkehr aus unavailable (Hue-Aussetzer, Neustart) zaehlt nicht
+  - trigger: state
+    entity_id: light.hue_white_lamp_1
+    from: "off"
+    to: "on"
+    id: schrank
+  - trigger: state
+    entity_id: light.hue_white_lamp_2
+    from: "off"
+    to: "on"
+    id: sofa
+conditions:
+  # Eigene Automationen/Skripte tragen immer eine parent_id
+  - "{{ trigger.to_state.context.parent_id is none }}"
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: schrank
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_schrank
+            data:
+              option: manuell_an
+      - conditions:
+          - condition: trigger
+            id: sofa
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.nehemia_modus_sofa
+            data:
+              option: manuell_an
