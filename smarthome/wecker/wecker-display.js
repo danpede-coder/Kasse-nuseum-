@@ -6,9 +6,17 @@ const PERSONEN = [
 ];
 const LAEUFT = ["script.wecker_sonnenaufgang", "script.wecker_ton"];
 const TAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
-const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const MONATE = ["Jan", "Feb", "M\u00e4r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
 const pad = (n) => String(n).padStart(2, "0");
+
+// Hintergrund wie das iPad-Dashboard (zuhause-nehemia): Wetterbild + Farbkugeln + Abdunkelung
+const ORBS = "radial-gradient(circle closest-side,rgba(200,230,46,.22) 0,rgba(200,230,46,0) 100%) 5% 10%/70vmax 70vmax no-repeat," +
+  "radial-gradient(circle closest-side,rgba(109,74,255,.5) 0,rgba(109,74,255,0) 100%) 85% 40%/75vmax 75vmax no-repeat," +
+  "radial-gradient(circle closest-side,rgba(74,222,128,.32) 0,rgba(74,222,128,0) 100%) 95% 95%/60vmax 60vmax no-repeat," +
+  "linear-gradient(rgba(12,12,14,.45),rgba(12,12,14,.45))";
+const SCHNEE_NACHT = "https://raw.githubusercontent.com/danpede-coder/Kasse-nuseum-/838635e6a1253ff6a249f94c69ce100a123f7431/smarthome/dashboard/wetter/schnee_nacht.jpg";
+const SCHLECHT = ["rainy", "pouring", "lightning", "lightning-rainy", "snowy", "snowy-rainy", "hail", "fog"];
 
 class WeckerDisplay extends HTMLElement {
   setConfig(config) {
@@ -49,21 +57,26 @@ class WeckerDisplay extends HTMLElement {
     ).join("");
     root.innerHTML = `
       <style>
-        :host { display: block; }
+        :host { display: block; position: relative; }
+        .bg { position: fixed; inset: 0; background: #141416 center/cover no-repeat; transition: filter 1s; }
+        .bg::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,0); transition: background 1s; }
         .wrap {
-          --bg: #0b0d12; --fg: #f2f4f8; --dim: #8a93a6; --acc: #ffb547; --card: #161a22; --off: #3a4150;
+          --fg: #F5F5F7; --dim: rgba(255,255,255,.6); --acc: #FFC400; --off: rgba(255,255,255,.12);
+          position: relative;
           box-sizing: border-box;
           height: calc(100dvh - ${Number(this._config?.offset) || 0}px);
           padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
                    max(12px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
-          background: var(--bg); color: var(--fg);
-          font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+          color: var(--fg);
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
           display: grid; grid-template-rows: 1fr auto; gap: 12px; overflow: hidden;
           -webkit-user-select: none; user-select: none;
         }
-        .wrap.nacht { --bg: #000; --fg: #c9875a; --dim: #6e4a33; --acc: #d9783a; --card: #120a06; --off: #2a1a10; }
+        .wrap.nacht { --fg: #d9a27a; --dim: rgba(217,162,122,.55); --acc: #d9783a; --off: rgba(217,162,122,.12); }
+        :host(.nacht) .bg::after { background: rgba(0,0,0,.62); }
         .oben { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
-        .uhr { font-size: min(24vw, 30vh); font-weight: 200; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+        .uhr { text-shadow: 0 2px 18px rgba(0,0,0,.45); font-size: min(24vw, 30vh); font-weight: 200; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+        .datum, .naechster { text-shadow: 0 1px 8px rgba(0,0,0,.5); }
         .datum { margin-top: 6px; font-size: min(5vmin, 4.5vh); color: var(--dim); }
         .naechster { margin-top: 10px; font-size: min(5vmin, 4.5vh); color: var(--acc); text-align: center; }
         .stopp {
@@ -73,9 +86,11 @@ class WeckerDisplay extends HTMLElement {
         .wrap.weckt .stopp { display: block; }
         .wrap.weckt .datum, .wrap.weckt .naechster { display: none; }
         .unten { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
-        .person { min-width: 0; background: var(--card); border-radius: 18px; padding: 10px 10px 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity .3s; }
+        .person { min-width: 0; background: rgba(40,40,44,.24); border: 1px solid rgba(255,255,255,.09); border-radius: 22px;
+          backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 32px rgba(0,0,0,.35); padding: 10px 10px 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity .3s; }
         .person.aus { opacity: .45; }
-        .name { font-size: 15px; color: var(--dim); }
+        .name { font-size: 15px; font-weight: 600; color: var(--dim); }
         .zeitbox { position: relative; display: block; text-align: center; min-width: 0; overflow: hidden; }
         .zeit { font-size: min(12vw, 10vh); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1.15; }
         /* natives Feld unsichtbar darueber: Tipp oeffnet das iOS-Drehrad, Anzeige bleibt 24 h */
@@ -95,6 +110,7 @@ class WeckerDisplay extends HTMLElement {
         .wrap.quer .pillen { flex-direction: column; }
         .wrap.quer .uhr { font-size: min(17vw, 42vh); }
       </style>
+      <div class="bg"></div>
       <div class="wrap" lang="de">
         <div class="oben">
           <div class="uhr"></div>
@@ -114,6 +130,31 @@ class WeckerDisplay extends HTMLElement {
       box.querySelector(".aktiv").addEventListener("click", () => this._call("input_boolean", "toggle", { entity_id: `input_boolean.wecker_${p}_aktiv` }));
       box.querySelector(".we").addEventListener("click", () => this._call("input_boolean", "toggle", { entity_id: `input_boolean.wecker_${p}_wochenende` }));
     });
+  }
+
+  // gleiche Bildwahl wie der Stil der iPad-mod-card
+  _hintergrund() {
+    const st = this._hass.states;
+    const w = this._on("input_boolean.wetter_vorschau_gewitter") ? "lightning-rainy"
+      : this._on("input_boolean.wetter_vorschau_regen") ? "rainy"
+      : this._on("input_boolean.wetter_vorschau_schnee") ? "snowy"
+      : st["weather.forecast_home_2"]?.state;
+    const sonne = st["sun.sun"];
+    const n = sonne?.state === "below_horizon";
+    const img = ["rainy", "pouring"].includes(w) ? "regen"
+      : ["lightning", "lightning-rainy"].includes(w) ? "gewitter"
+      : ["snowy", "snowy-rainy", "hail"].includes(w) ? "schnee"
+      : w === "fog" ? "nebel" : n ? "nacht" : w === "sunny" ? "sonne" : "wolken";
+    const e = Number(sonne?.attributes?.elevation ?? 90);
+    let gl = "";
+    if (e >= -5 && e <= 8 && !SCHLECHT.includes(w)) {
+      gl = sonne?.attributes?.rising
+        ? "linear-gradient(180deg,rgba(255,170,120,.32) 0%,rgba(255,200,150,.18) 45%,rgba(255,220,180,0) 80%),"
+        : "linear-gradient(180deg,rgba(255,120,60,.42) 0%,rgba(255,90,90,.22) 45%,rgba(255,150,80,0) 85%),";
+    }
+    const extra = img === "schnee" && n ? `url('${SCHNEE_NACHT}') center/cover no-repeat,` : "";
+    return `${ORBS},${gl}${extra}url('/local/wetter/${img}.jpg?v=5') center/cover no-repeat,` +
+      `url('https://homeassistant.tail0809b0.ts.net/local/wetter/${img}.jpg?v=5') center/cover no-repeat,#141416`;
   }
 
   _call(domain, service, data) {
@@ -150,6 +191,9 @@ class WeckerDisplay extends HTMLElement {
     this._el(".uhr").textContent = `${pad(stunde)}:${pad(jetzt.getMinutes())}`;
     this._el(".datum").textContent = `${TAGE[jetzt.getDay()]}, ${jetzt.getDate()}. ${MONATE[jetzt.getMonth()]}`;
     if (!this._hass) return;
+    this.classList.toggle("nacht", stunde >= 21 || stunde < 6);
+    const bg = this._hintergrund();
+    if (bg !== this._bg) { this._bg = bg; this._el(".bg").style.background = bg; }
     wrap.classList.toggle("weckt", LAEUFT.some((id) => this._on(id)));
 
     let best = null;
@@ -172,7 +216,7 @@ class WeckerDisplay extends HTMLElement {
       const min = Math.round((best.t - jetzt) / 60000);
       const rest = min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
       const tag = best.t.getDate() === jetzt.getDate() ? "" : `${TAGE[best.t.getDay()]} `;
-      this._el(".naechster").textContent = `⏰ ${best.name} ${tag}${pad(best.t.getHours())}:${pad(best.t.getMinutes())} · in ${rest}`;
+      this._el(".naechster").textContent = `\u23f0 ${best.name} ${tag}${pad(best.t.getHours())}:${pad(best.t.getMinutes())} \u00b7 in ${rest}`;
     } else {
       this._el(".naechster").textContent = "Kein Wecker aktiv";
     }
@@ -181,4 +225,4 @@ class WeckerDisplay extends HTMLElement {
 
 if (!customElements.get("wecker-display")) customElements.define("wecker-display", WeckerDisplay);
 window.customCards = window.customCards || [];
-window.customCards.push({ type: "wecker-display", name: "Wecker-Display", description: "Nachttisch-Wecker für Dan & Caleb (ein Bildschirm)" });
+window.customCards.push({ type: "wecker-display", name: "Wecker-Display", description: "Nachttisch-Wecker f\u00fcr Dan & Caleb (ein Bildschirm)" });
