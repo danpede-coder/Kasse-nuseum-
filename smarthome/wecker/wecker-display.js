@@ -5,6 +5,18 @@ const PERSONEN = [
   { id: "caleb", name: "Caleb" },
 ];
 const LAEUFT = ["script.wecker_sonnenaufgang", "script.wecker_ton"];
+// Lampenleiste: nur das Wichtigste (Schrank, Fenster, Leselicht wie Taste 4, Alles aus wie Taste 1)
+const LICHT = [
+  { k: "schrank", name: "Schrank", entity: "light.hue_white_lamp_1", icon: "bulb" },
+  { k: "fenster", name: "Fenster", entity: "light.hue_white_lamp_2", icon: "bulb" },
+  { k: "lesen", name: "Lesen", entity: "light.hue_white_lamp_2", icon: "book" },
+  { k: "aus", name: "Alles aus", icon: "moon" },
+];
+const ICON = {
+  bulb: '<path d="M9 21h6M10 18h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
+  book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+};
 const TAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const MONATE = ["Jan", "Feb", "M\u00e4r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
@@ -55,6 +67,10 @@ class WeckerDisplay extends HTMLElement {
         </div>
       </div>`
     ).join("");
+    const licht = LICHT.map(
+      (l) => `<button class="lk" data-k="${l.k}" aria-label="${l.name}">
+        <svg viewBox="0 0 24 24">${ICON[l.icon]}</svg><span class="lt">${l.name}</span><span class="ls"></span></button>`
+    ).join("");
     root.innerHTML = `
       <style>
         :host { display: block; position: relative; }
@@ -85,6 +101,16 @@ class WeckerDisplay extends HTMLElement {
         }
         .wrap.weckt .stopp { display: block; }
         .wrap.weckt .datum, .wrap.weckt .naechster { display: none; }
+        .licht { display: flex; gap: 8px; margin-top: min(4vh, 18px); width: 100%; max-width: 300px; justify-content: center; }
+        .lk { flex: 1 1 0; min-width: 0; max-width: 68px; padding: 7px 0 6px; border-radius: 18px; border: 1px solid rgba(255,255,255,.09);
+          background: rgba(40,40,44,.24); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
+          color: var(--fg); font: inherit; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .lk svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+        .lt { font-size: 11px; font-weight: 600; }
+        .ls { font-size: 10px; color: var(--dim); min-height: 12px; }
+        .lk.an { background: var(--acc); color: #000; border-color: transparent; box-shadow: 0 0 18px rgba(255,196,0,.35); }
+        .lk.an .ls { color: rgba(0,0,0,.6); }
+        .lk.off { opacity: .4; }
         .unten { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
         .person { min-width: 0; background: rgba(40,40,44,.24); border: 1px solid rgba(255,255,255,.09); border-radius: 22px;
           backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
@@ -117,11 +143,19 @@ class WeckerDisplay extends HTMLElement {
           <div class="datum"></div>
           <div class="naechster"></div>
           <button class="stopp">Aus</button>
+          <div class="licht">${licht}</div>
         </div>
         <div class="unten">${personen}</div>
       </div>`;
     this._el = (s) => root.querySelector(s);
     this._el(".stopp").addEventListener("click", () => this._call("script", "turn_on", { entity_id: "script.wecker_stopp" }));
+    root.querySelectorAll(".lk").forEach((b) => b.addEventListener("click", () => {
+      const k = b.dataset.k;
+      if (k === "schrank") this._call("light", "toggle", { entity_id: "light.hue_white_lamp_1" });
+      else if (k === "fenster") this._call("light", "toggle", { entity_id: "light.hue_white_lamp_2" });
+      else if (k === "lesen") this._call("light", "turn_on", { entity_id: "light.hue_white_lamp_2", brightness_pct: 40 });
+      else this._call("script", "turn_on", { entity_id: "script.alles_aus_ausser_musik" });
+    }));
     root.querySelectorAll(".person").forEach((box) => {
       const p = box.dataset.p;
       box.querySelector(".zeitin").addEventListener("change", (e) => {
@@ -195,6 +229,18 @@ class WeckerDisplay extends HTMLElement {
     const bg = this._hintergrund();
     if (bg !== this._bg) { this._bg = bg; this._el(".bg").style.background = bg; }
     wrap.classList.toggle("weckt", LAEUFT.some((id) => this._on(id)));
+
+    for (const l of LICHT) {
+      const b = this._el(`.lk[data-k="${l.k}"]`);
+      if (!l.entity) { b.querySelector(".ls").textContent = ""; continue; }
+      const st = this._hass.states[l.entity];
+      const offline = !st || st.state === "unavailable" || st.state === "unknown";
+      const pct = st?.state === "on" ? Math.round((st.attributes?.brightness ?? 255) / 2.55) : 0;
+      const an = l.k === "lesen" ? pct > 0 && Math.abs(pct - 40) <= 2 : st?.state === "on";
+      b.classList.toggle("an", !offline && an);
+      b.classList.toggle("off", offline);
+      b.querySelector(".ls").textContent = offline ? "offline" : l.k === "lesen" ? "40 %" : an ? `${pct} %` : "aus";
+    }
 
     let best = null;
     for (const p of PERSONEN) {
