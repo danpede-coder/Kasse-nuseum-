@@ -100,8 +100,8 @@ class WeckerDisplay extends HTMLElement {
         .wrap.weckt .stopp { display: block; }
         .wrap.weckt .datum, .wrap.weckt .naechster { display: none; }
         .licht { display: flex; gap: 8px; margin-top: min(4vh, 18px); width: 100%; max-width: 300px; justify-content: center; }
-        .lk { flex: 1 1 0; min-width: 0; max-width: 68px; padding: 7px 0 6px; border-radius: 18px; border: 1px solid rgba(255,255,255,.09);
-          background: rgba(40,40,44,.24); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
+        .lk { flex: 1 1 0; min-width: 0; max-width: 68px; padding: 7px 0 6px; border-radius: 18px; border: 1px solid rgba(255,255,255,.18);
+          background: rgba(18,18,22,.62); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
           color: var(--fg); font: inherit; display: flex; flex-direction: column; align-items: center; gap: 2px; }
         .lk svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
         .lt { font-size: 11px; font-weight: 600; }
@@ -110,17 +110,19 @@ class WeckerDisplay extends HTMLElement {
         .lk.an .ls { color: rgba(0,0,0,.6); }
         .lk.off { opacity: .4; }
         .unten { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
-        .person { min-width: 0; background: rgba(40,40,44,.24); border: 1px solid rgba(255,255,255,.09); border-radius: 22px;
+        .person { min-width: 0; background: rgba(18,18,22,.62); border: 1px solid rgba(255,255,255,.18); border-radius: 22px;
           backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
           box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 32px rgba(0,0,0,.35); padding: 10px 10px 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity .3s; }
-        .person.aus { opacity: .45; }
-        .name { font-size: 15px; font-weight: 600; color: var(--dim); }
+        .person.aus { opacity: .75; }
+        .person.aus .zeit { color: rgba(255,255,255,.55); }
+        .name { font-size: 16px; font-weight: 600; color: rgba(255,255,255,.85); }
+        .wrap.nacht .name { color: var(--fg); }
         .zeitbox { position: relative; display: block; text-align: center; min-width: 0; overflow: hidden; }
-        .zeit { font-size: min(12vw, 10vh); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1.15; }
+        .zeit { text-shadow: 0 1px 6px rgba(0,0,0,.5); font-size: min(12vw, 10vh); font-weight: 400; font-variant-numeric: tabular-nums; line-height: 1.15; }
         /* natives Feld unsichtbar darueber: Tipp oeffnet das iOS-Drehrad, Anzeige bleibt 24 h */
         .zeitin { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; font-size: 16px; min-width: 0; max-width: 100%; box-sizing: border-box; }
         .pillen { display: flex; gap: 6px; }
-        .pille { border: 0; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; background: var(--off); color: var(--dim); }
+        .pille { border: 0; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.16); color: rgba(255,255,255,.8); }
         .pille.an { background: var(--acc); color: #000; }
         /* Querformat: per config quer: true erzwungen, sonst automatisch bei Breite > Hoehe */
         .wrap.quer { grid-template-rows: none; grid-template-columns: 1.3fr 1fr; }
@@ -255,7 +257,9 @@ class WeckerDisplay extends HTMLElement {
       const zeitin = box.querySelector(".zeitin");
       if (this.shadowRoot.activeElement !== zeitin && zeitin.value !== wert) zeitin.value = wert;
     }
-    if (best) {
+    if (this._hass.states["automation.wecker_dan_caleb"]?.state === "off") {
+      this._el(".naechster").textContent = "\u23f8 Wecker pausiert";
+    } else if (best) {
       const min = Math.round((best.t - jetzt) / 60000);
       const rest = min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
       const tag = best.t.getDate() === jetzt.getDate() ? "" : `${TAGE[best.t.getDay()]} `;

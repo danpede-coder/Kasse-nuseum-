@@ -31,3 +31,7 @@ Zwei getrennte Wecker (Dan, Caleb) mit Sonnenaufgang und sanftem Weckton.
 - Nach Code-Änderung: Ressource mit `ha_config_set_dashboard_resource(content=…, resource_id=4d4338a0…)` neu speichern, App auf dem SE neu laden.
 - **Lampenleiste:** Schrank / Fenster (toggle), Alles aus (`script.alles_aus`, wie der Knopf am iPad). An = gelb mit %, nicht erreichbar = „offline“. Antippen zählt als manuell → `manuell_an`.
 - Ausrichtung automatisch (quer bei Breite > Höhe); `quer: true` würde Querformat erzwingen.
+
+## Pausieren / Fortsetzen
+- Pause: `automation.wecker_dan_caleb` deaktivieren (Skripte laufen dann nur noch von Hand). Das Display zeigt „⏸ Wecker pausiert“.
+- Fortsetzen: Automation wieder aktivieren (HA → Einstellungen → Automationen → „Wecker · Dan & Caleb“).
