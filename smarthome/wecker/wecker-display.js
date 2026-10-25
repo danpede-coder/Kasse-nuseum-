@@ -83,18 +83,17 @@ class WeckerDisplay extends HTMLElement {
         .pillen { display: flex; gap: 6px; }
         .pille { border: 0; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; background: var(--off); color: var(--dim); }
         .pille.an { background: var(--acc); color: #000; }
-        @media (orientation: landscape) {
-          .wrap { grid-template-rows: none; grid-template-columns: 1.3fr 1fr; }
-          .unten { grid-template-columns: none; grid-template-rows: 1fr 1fr; }
-          .person { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pillen" "zeit pillen";
-                    align-items: center; row-gap: 0; padding: 8px 14px; }
-          .name { grid-area: name; }
-          .zeitbox { grid-area: zeit; text-align: left; }
-          .pillen { grid-area: pillen; }
-          .zeit { font-size: min(8vw, 13vh); }
-          .pillen { flex-direction: column; }
-          .uhr { font-size: min(14vw, 40vh); }
-        }
+        /* Querformat: per config quer: true erzwungen, sonst automatisch bei Breite > Hoehe */
+        .wrap.quer { grid-template-rows: none; grid-template-columns: 1.3fr 1fr; }
+        .wrap.quer .unten { grid-template-columns: none; grid-template-rows: 1fr 1fr; }
+        .wrap.quer .person { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pillen" "zeit pillen";
+        align-items: center; row-gap: 0; padding: 8px 14px; }
+        .wrap.quer .name { grid-area: name; }
+        .wrap.quer .zeitbox { grid-area: zeit; text-align: left; }
+        .wrap.quer .pillen { grid-area: pillen; }
+        .wrap.quer .zeit { font-size: min(8vw, 13vh); }
+        .wrap.quer .pillen { flex-direction: column; }
+        .wrap.quer .uhr { font-size: min(17vw, 42vh); }
       </style>
       <div class="wrap" lang="de">
         <div class="oben">
@@ -147,6 +146,7 @@ class WeckerDisplay extends HTMLElement {
     const stunde = jetzt.getHours();
     const wrap = this._el(".wrap");
     wrap.classList.toggle("nacht", stunde >= 21 || stunde < 6);
+    wrap.classList.toggle("quer", this._config?.quer === true || (this._config?.quer !== false && innerWidth > innerHeight));
     this._el(".uhr").textContent = `${pad(stunde)}:${pad(jetzt.getMinutes())}`;
     this._el(".datum").textContent = `${TAGE[jetzt.getDay()]}, ${jetzt.getDate()}. ${MONATE[jetzt.getMonth()]}`;
     if (!this._hass) return;

@@ -11,7 +11,7 @@ Zwei getrennte Wecker (Dan, Caleb) mit Sonnenaufgang und sanftem Weckton.
 | `script.wecker_sonnenaufgang` | Fensterlicht 1→100 % in 20 Schritten (quadratisch), Schranklicht ab Minute 10; setzt beide Lampen auf `manuell_an` |
 | `script.wecker_ton` | `wecker_sanft.mp3` per AirPlay auf `media_player.nehemia_homepod`, Lautstärke parallel von `lautstaerke_start` (0.12) bis `lautstaerke_max` (0.42) |
 | `script.wecker_stopp` | beendet Sonnenaufgang und Ton, setzt `input_boolean.wecker_gestoppt` (kein Nachwecken heute), Licht bleibt |
-| Dashboard `wecker-nehemia` | Panel-View mit `custom:wecker-display` (ein Bildschirm, kein Scrollen, Hoch-/Querformat, Nachtmodus 21–6 Uhr). Inline-Ressource `4d4338a04d144089aa9ae50bf3492764`, Code `wecker-display.js`, Vorschau `vorschau.png` |
+| Dashboard `wecker-nehemia` | Panel-View mit `custom:wecker-display` + `quer: true` (Querformat fest; ein Bildschirm, kein Scrollen, Hoch-/Querformat, Nachtmodus 21–6 Uhr). Inline-Ressource `4d4338a04d144089aa9ae50bf3492764`, Code `wecker-display.js`, Vorschau `vorschau.png` |
 
 - Ton: `ton.py` erzeugt `wecker.wav`, daraus MP3 **stereo, ohne ID3/Xing** (`ffmpeg -ac 2 -id3v2_version 0 -write_xing 0 -map_metadata -1`), sonst meldet pyatv „failed to init decoder“. Eingebunden per Raw-URL mit Commit-SHA.
 - `play_media` blockiert, solange der Stream läuft – darum läuft die Lautstärke-Rampe parallel.
