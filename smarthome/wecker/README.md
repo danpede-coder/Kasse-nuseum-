@@ -29,5 +29,5 @@ Zwei getrennte Wecker (Dan, Caleb) mit Sonnenaufgang und sanftem Weckton.
 - Uhr + nächster Wecker; läuft Sonnenaufgang/Ton, ersetzt ein großer „Aus“-Knopf (`script.wecker_stopp`) Datum und nächsten Wecker.
 - Weckzeit: eigene 24-h-Anzeige, darüber ein unsichtbares `<input type="time">` (öffnet das iOS-Drehrad) → `input_datetime.set_datetime`.
 - Nach Code-Änderung: Ressource mit `ha_config_set_dashboard_resource(content=…, resource_id=4d4338a0…)` neu speichern, App auf dem SE neu laden.
-- **Lampenleiste:** Schrank / Fenster (toggle), Lesen (Fenster 40 %, wie Taste 4), Alles aus (`script.alles_aus_ausser_musik`, wie Taste 1). An = gelb mit %, nicht erreichbar = „offline“. Antippen zählt als manuell → `manuell_an`.
+- **Lampenleiste:** Schrank / Fenster (toggle), Alles aus (`script.alles_aus`, wie der Knopf am iPad). An = gelb mit %, nicht erreichbar = „offline“. Antippen zählt als manuell → `manuell_an`.
 - Ausrichtung automatisch (quer bei Breite > Höhe); `quer: true` würde Querformat erzwingen.

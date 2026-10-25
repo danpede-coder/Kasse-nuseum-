@@ -5,16 +5,14 @@ const PERSONEN = [
   { id: "caleb", name: "Caleb" },
 ];
 const LAEUFT = ["script.wecker_sonnenaufgang", "script.wecker_ton"];
-// Lampenleiste: nur das Wichtigste (Schrank, Fenster, Leselicht wie Taste 4, Alles aus wie Taste 1)
+// Lampenleiste: nur das Wichtigste (Schrank, Fenster, Alles aus wie der Knopf am iPad)
 const LICHT = [
   { k: "schrank", name: "Schrank", entity: "light.hue_white_lamp_1", icon: "bulb" },
   { k: "fenster", name: "Fenster", entity: "light.hue_white_lamp_2", icon: "bulb" },
-  { k: "lesen", name: "Lesen", entity: "light.hue_white_lamp_2", icon: "book" },
   { k: "aus", name: "Alles aus", icon: "moon" },
 ];
 const ICON = {
   bulb: '<path d="M9 21h6M10 18h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
-  book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
 };
 const TAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
@@ -153,8 +151,7 @@ class WeckerDisplay extends HTMLElement {
       const k = b.dataset.k;
       if (k === "schrank") this._call("light", "toggle", { entity_id: "light.hue_white_lamp_1" });
       else if (k === "fenster") this._call("light", "toggle", { entity_id: "light.hue_white_lamp_2" });
-      else if (k === "lesen") this._call("light", "turn_on", { entity_id: "light.hue_white_lamp_2", brightness_pct: 40 });
-      else this._call("script", "turn_on", { entity_id: "script.alles_aus_ausser_musik" });
+      else this._call("script", "turn_on", { entity_id: "script.alles_aus" });
     }));
     root.querySelectorAll(".person").forEach((box) => {
       const p = box.dataset.p;
@@ -236,10 +233,10 @@ class WeckerDisplay extends HTMLElement {
       const st = this._hass.states[l.entity];
       const offline = !st || st.state === "unavailable" || st.state === "unknown";
       const pct = st?.state === "on" ? Math.round((st.attributes?.brightness ?? 255) / 2.55) : 0;
-      const an = l.k === "lesen" ? pct > 0 && Math.abs(pct - 40) <= 2 : st?.state === "on";
+      const an = st?.state === "on";
       b.classList.toggle("an", !offline && an);
       b.classList.toggle("off", offline);
-      b.querySelector(".ls").textContent = offline ? "offline" : l.k === "lesen" ? "40 %" : an ? `${pct} %` : "aus";
+      b.querySelector(".ls").textContent = offline ? "offline" : an ? `${pct} %` : "aus";
     }
 
     let best = null;
