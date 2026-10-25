@@ -16,6 +16,8 @@ Zwei getrennte Wecker (Dan, Caleb) mit Sonnenaufgang und sanftem Weckton.
 - Ton: `ton.py` erzeugt `wecker.wav`, daraus MP3 **stereo, ohne ID3/Xing** (`ffmpeg -ac 2 -id3v2_version 0 -write_xing 0 -map_metadata -1`), sonst meldet pyatv „failed to init decoder“. Eingebunden per Raw-URL mit Commit-SHA.
 - `play_media` blockiert, solange der Stream läuft – darum läuft die Lautstärke-Rampe parallel.
 - **Nachwecken:** Weckzeit +5 min und +10 min: liegt die Person noch im Bett (`input_boolean.nehemia_bett_<p>` oder Bettzone Dan `…_belegung_5` / Caleb `…_belegung_4`) und `wecker_gestoppt` ist aus, kommt der Ton erneut mit 25→50 % bzw. 30→55 % (bewusst gedeckelt, der andere schläft evtl. noch). Der normale Ton-Trigger setzt `wecker_gestoppt` zurück.
+- **Kurzfristig gestellt:** Wird die Weckzeit geändert oder „Aktiv“/„Sa/So“ eingeschaltet und die Weckzeit liegt in den nächsten 20 min (Trigger `neu_<p>`), startet der Sonnenaufgang sofort.
+- Am Wochenende passiert nur etwas, wenn „Sa/So“ an ist (Trace zeigt dann „Wecker heute nicht aktiv“).
 - Beide Wecker teilen sich das Licht (ein Zimmer); läuft der Sonnenaufgang schon, ignoriert der zweite Start ihn (`mode: single`).
 
 ## iPhone SE als Nachttisch-Display
