@@ -1,5 +1,5 @@
 // Wecker-Display fuers iPhone SE am Nachttisch: ein Bildschirm, kein Scrollen.
-// Uhr, naechster Wecker, je Person Weckzeit + An/Aus + Sa/So, waehrend des Weckens ein grosser Aus-Knopf.
+// Uhr, naechster Wecker, je Person Mo-Fr-Zeit + An/Aus + Sa und So mit eigener Zeit, waehrend des Weckens ein grosser Aus-Knopf.
 const PERSONEN = [
   { id: "dan", name: "Dan" },
   { id: "caleb", name: "Caleb" },
@@ -61,7 +61,9 @@ class WeckerDisplay extends HTMLElement {
         <label class="zeitbox"><span class="zeit"></span><input class="zeitin" type="time" step="300" aria-label="Weckzeit ${p.name}"></label>
         <div class="pillen">
           <button class="pille aktiv" aria-label="Wecker ${p.name} an/aus"></button>
-          <button class="pille we" aria-label="${p.name} auch Sa/So">Sa/So</button>
+        </div>
+        <div class="tage">${["sa", "so"].map((t) => `
+          <div class="tag" data-t="${t}"><button class="tk" aria-label="${p.name} ${t === "sa" ? "Samstag" : "Sonntag"} an/aus">${t === "sa" ? "Sa" : "So"}</button><label class="tz"><span></span><input class="zeitin" type="time" step="300" aria-label="Weckzeit ${p.name} ${t === "sa" ? "Samstag" : "Sonntag"}"></label></div>`).join("")}
         </div>
       </div>`
     ).join("");
@@ -124,14 +126,21 @@ class WeckerDisplay extends HTMLElement {
         .pillen { display: flex; gap: 6px; }
         .pille { border: 0; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.16); color: rgba(255,255,255,.8); }
         .pille.an { background: var(--acc); color: #000; }
+        .tage { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+        .tag { display: flex; align-items: center; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; opacity: .6; }
+        .tag.an { opacity: 1; background: rgba(255,196,0,.22); box-shadow: inset 0 0 0 1px var(--acc); }
+        .tk { border: 0; border-radius: 999px; padding: 6px 9px; font: inherit; font-size: 13px; font-weight: 700; background: rgba(255,255,255,.16); color: rgba(255,255,255,.85); }
+        .tag.an .tk { background: var(--acc); color: #000; }
+        .tz { position: relative; display: block; padding: 6px 9px 6px 6px; font-size: 14px; font-variant-numeric: tabular-nums; }
         /* Querformat: per config quer: true erzwungen, sonst automatisch bei Breite > Hoehe */
         .wrap.quer { grid-template-rows: none; grid-template-columns: 1.3fr 1fr; }
         .wrap.quer .unten { grid-template-columns: none; grid-template-rows: 1fr 1fr; }
-        .wrap.quer .person { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pillen" "zeit pillen";
+        .wrap.quer .person { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pillen" "zeit pillen" "tage tage";
         align-items: center; row-gap: 0; padding: 8px 14px; }
         .wrap.quer .name { grid-area: name; }
         .wrap.quer .zeitbox { grid-area: zeit; text-align: left; }
         .wrap.quer .pillen { grid-area: pillen; }
+        .wrap.quer .tage { grid-area: tage; margin-top: 4px; }
         .wrap.quer .zeit { font-size: min(8vw, 13vh); }
         .wrap.quer .pillen { flex-direction: column; }
         .wrap.quer .uhr { font-size: min(17vw, 42vh); }
@@ -157,11 +166,17 @@ class WeckerDisplay extends HTMLElement {
     }));
     root.querySelectorAll(".person").forEach((box) => {
       const p = box.dataset.p;
-      box.querySelector(".zeitin").addEventListener("change", (e) => {
+      box.querySelector(".zeitbox .zeitin").addEventListener("change", (e) => {
         if (e.target.value) this._call("input_datetime", "set_datetime", { entity_id: `input_datetime.wecker_${p}`, time: `${e.target.value}:00` });
       });
+      box.querySelectorAll(".tag").forEach((tag) => {
+        const t = tag.dataset.t;
+        tag.querySelector(".tk").addEventListener("click", () => this._call("input_boolean", "toggle", { entity_id: `input_boolean.wecker_${p}_${t}` }));
+        tag.querySelector(".zeitin").addEventListener("change", (e) => {
+          if (e.target.value) this._call("input_datetime", "set_datetime", { entity_id: `input_datetime.wecker_${p}_${t}_zeit`, time: `${e.target.value}:00` });
+        });
+      });
       box.querySelector(".aktiv").addEventListener("click", () => this._call("input_boolean", "toggle", { entity_id: `input_boolean.wecker_${p}_aktiv` }));
-      box.querySelector(".we").addEventListener("click", () => this._call("input_boolean", "toggle", { entity_id: `input_boolean.wecker_${p}_wochenende` }));
     });
   }
 
@@ -198,20 +213,17 @@ class WeckerDisplay extends HTMLElement {
     return this._hass?.states[id]?.state === "on";
   }
 
-  // Naechster Weckzeitpunkt je Person (Date) oder null
+  // Naechster Weckzeitpunkt je Person (Date) oder null, aus sensor.wecker_<p>_naechster
   _naechster(p) {
-    const st = this._hass?.states[`input_datetime.wecker_${p}`];
-    if (!st || !this._on(`input_boolean.wecker_${p}_aktiv`)) return null;
-    const [h, m] = st.state.split(":").map(Number);
-    if (Number.isNaN(h)) return null;
-    const we = this._on(`input_boolean.wecker_${p}_wochenende`);
-    const jetzt = new Date();
-    for (let d = 0; d < 8; d++) {
-      const t = new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate() + d, h, m);
-      const tag = t.getDay();
-      if (t > jetzt && (we || (tag >= 1 && tag <= 5))) return t;
-    }
-    return null;
+    const t = new Date(this._hass?.states[`sensor.wecker_${p}_naechster`]?.state);
+    return Number.isNaN(t.getTime()) ? null : t;
+  }
+
+  // Zeitfeld (24-h-Anzeige + unsichtbares Eingabefeld) auf den HA-Wert setzen
+  _zeit(span, input, id) {
+    const wert = (this._hass.states[id]?.state || "").slice(0, 5);
+    span.textContent = wert || "--:--";
+    if (this.shadowRoot.activeElement !== input && input.value !== wert) input.value = wert;
   }
 
   _update() {
@@ -251,16 +263,17 @@ class WeckerDisplay extends HTMLElement {
       const pille = box.querySelector(".aktiv");
       pille.classList.toggle("an", aktiv);
       pille.textContent = aktiv ? "An" : "Aus";
-      box.querySelector(".we").classList.toggle("an", this._on(`input_boolean.wecker_${p.id}_wochenende`));
-      const wert = (this._hass.states[`input_datetime.wecker_${p.id}`]?.state || "").slice(0, 5);
-      box.querySelector(".zeit").textContent = wert || "--:--";
-      const zeitin = box.querySelector(".zeitin");
-      if (this.shadowRoot.activeElement !== zeitin && zeitin.value !== wert) zeitin.value = wert;
+      this._zeit(box.querySelector(".zeit"), box.querySelector(".zeitbox .zeitin"), `input_datetime.wecker_${p.id}`);
+      box.querySelectorAll(".tag").forEach((tag) => {
+        const t = tag.dataset.t;
+        tag.classList.toggle("an", this._on(`input_boolean.wecker_${p.id}_${t}`));
+        this._zeit(tag.querySelector(".tz span"), tag.querySelector(".zeitin"), `input_datetime.wecker_${p.id}_${t}_zeit`);
+      });
     }
     if (this._hass.states["automation.wecker_dan_caleb"]?.state === "off") {
       this._el(".naechster").textContent = "\u23f8 Wecker pausiert";
     } else if (best) {
-      const min = Math.round((best.t - jetzt) / 60000);
+      const min = Math.max(0, Math.round((best.t - jetzt) / 60000));
       const rest = min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
       const tag = best.t.getDate() === jetzt.getDate() ? "" : `${TAGE[best.t.getDay()]} `;
       this._el(".naechster").textContent = `\u23f0 ${best.name} ${tag}${pad(best.t.getHours())}:${pad(best.t.getMinutes())} \u00b7 in ${rest}`;
