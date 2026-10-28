@@ -55,7 +55,7 @@ Lampen:
 | `bettschutz_freigabezeit` | 60 s | |
 | `bett_entprellung` | 45 s | |
 | `bett_nachlauf` | 90 s | |
-| `gute_nacht_zeit` | 20 min | Nicht kürzer: Sofa-Sitzende werden bis 17 min verloren. |
+| `gute_nacht_zeit` | 12 min | Auf Wunsch 28.10. von 20 verkürzt. Risiko: Sofa-Sitzende werden bis 17 min verloren und können dann im Dunkeln sitzen, wenn der andere im Bett liegt. |
 | `lux_dunkel_schwelle` / `lux_hell_schwelle` | 20 / 60 lx | Reine Lux-Grenzen (Hysterese). |
 | `lux_rollo_schwelle` | 4 lx | Darunter gilt der Rollladen als unten (Tag mit Rollladen unten ≈ 1 lx, offen trüb ≥ 6 lx). |
 | `sonne_hell_hoehe` | 5° | Ab hier zählt die Sonne als hell (≈ 40 min nach Sonnenaufgang). Abends wird es bei 3–4° dunkel. |
@@ -120,7 +120,7 @@ Lampen:
 - **Sofa-Sitzende** verliert der FP400 6–17 min komplett, Gesamt ist dann auch aus. Seit „überall 2 min“ geht das Licht dann nach 2 min aus und bei der nächsten Bewegung wieder an. Dagegen hilft nur die Empfindlichkeit in der Aqara-App.
 - **Raum Mitte (Zone 8)** überlappt Schrank und Bett Dan. Blips können nachts gedimmtes Licht bringen, wenn nur einer als liegend erkannt ist. Das Polygon in der Aqara-App korrigieren.
 - **Bett Gang** ragt in beide Betten (Zwillinge), auch das in der Aqara-App korrigieren.
-- **Morgens:** Liegt einer noch im Bett und der andere ist wach, aber von keiner Zone erkannt, schaltet Gute-Nacht nach 20 min aus (z. B. 11.10. 08:36). Eine Tageszeit-Regel gibt es bisher nicht; nur auf Wunsch einbauen. Eine dabei unerreichbare Lampe geht seit V6 über die Hue-Gruppe mit aus; eine Regel in der Variable `gute_nacht` gilt auch für den Fallback.
+- **Morgens:** Liegt einer noch im Bett und der andere ist wach, aber von keiner Zone erkannt, schaltet Gute-Nacht nach 12 min aus (z. B. 11.10. 08:36). Eine Tageszeit-Regel gibt es bisher nicht; nur auf Wunsch einbauen. Eine dabei unerreichbare Lampe geht seit V6 über die Hue-Gruppe mit aus; eine Regel in der Variable `gute_nacht` gilt auch für den Fallback.
 - **Hue-Funk:** Seit 12.10. melden beide Lampen an der Bridge `zigbee_connectivity: connectivity_issue`. Die Bridge funkt auf Zigbee-Kanal 25, im Zimmer stehen zwei Apple-Thread-Border-Router (Apple TV, HomePod), dazu FP400 und Türlicht (Matter). Abhilfe: Zigbee-Kanal in der Hue-App auf 15 oder 20, 2,4-GHz-WLAN fest auf Kanal 1, Einschaltverhalten der Lampen „Letzter Zustand“ (steht auf `safety` = 100 % nach Stromausfall).
 - **Hue-Aussetzer (Gruppen-Fallback):**
   - Noch nicht bestätigt: ob der Groupcast eine Lampe mit `connectivity_issue` wirklich erreicht.
