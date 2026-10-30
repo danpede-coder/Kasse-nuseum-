@@ -167,5 +167,5 @@ Lampen:
 9. Backup der alten (gelöschten) Automationen: `backup_alte_automationen.json`.
 
 ## Putzmodus (30.10.)
-- `input_boolean.nehemia_putzmodus` (Siri ueber HomeKit-Bridge „HASS Bridge OV“, iPad-Knopf „Putzen“ neben „Alles aus“ im Dashboard `zuhause-nehemia`).
+- `input_boolean.nehemia_putzmodus` (Siri ueber HomeKit-Bridge „HASS Bridge OV“, iPad-Kachel „Putzmodus“ unter „Pflanzen gegossen“ (rechte Spalte, Dashboard `zuhause-nehemia`)).
 - Automation `nehemia_putzmodus.yaml`: an → beide Modi `manuell_an` + 100 %; aus → Modi `automatik` (Lichtsteuerung rechnet neu); nach 2 h automatisch aus; nach Hue-Aussetzer wird nachgezogen.
