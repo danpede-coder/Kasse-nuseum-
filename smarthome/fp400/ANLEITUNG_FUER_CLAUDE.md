@@ -165,3 +165,7 @@ Lampen:
 7. Repo-YAML immer mit `id: "1791637610981"` pflegen, damit ein Einspielen die bestehende Automation ersetzt und keine zweite anlegt.
 8. Für Rückblicke das Logbuch mit `compact=false` nutzen (zeigt, welcher Trigger geschaltet hat; ohne Context = manuell; ein Aus über die Hue-Gruppe steht an der Lampe ohne `parent_id`, den Context trägt `light.schlafzimmer`) und die Traces (`stored_traces: 300`, reicht für etwa eine Nacht).
 9. Backup der alten (gelöschten) Automationen: `backup_alte_automationen.json`.
+
+## Putzmodus (30.10.)
+- `input_boolean.nehemia_putzmodus` (Siri ueber HomeKit-Bridge „HASS Bridge OV“, iPad-Knopf „Putzen“ neben „Alles aus“ im Dashboard `zuhause-nehemia`).
+- Automation `nehemia_putzmodus.yaml`: an → beide Modi `manuell_an` + 100 %; aus → Modi `automatik` (Lichtsteuerung rechnet neu); nach 2 h automatisch aus; nach Hue-Aussetzer wird nachgezogen.

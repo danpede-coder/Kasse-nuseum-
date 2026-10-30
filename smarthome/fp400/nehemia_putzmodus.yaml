@@ -1,0 +1,65 @@
+id: "1793377942070"
+alias: Nehemia Putzmodus
+description: >-
+  Putzmodus an (Siri/HomeKit oder iPad-Knopf): beide Lampen auf manuell_an und 100 %, damit die
+  Lichtsteuerung nicht dimmt. Kommt eine Lampe waehrend des Putzens wieder (Hue-Aussetzer), wird sie
+  nachgezogen. Aus: Modi zurueck auf automatik (Lichtsteuerung rechnet neu). Nach 2 h an geht der
+  Putzmodus von selbst aus.
+mode: restart
+triggers:
+  - trigger: state
+    entity_id: input_boolean.nehemia_putzmodus
+    to: "on"
+    id: an
+  - trigger: state
+    entity_id: input_boolean.nehemia_putzmodus
+    from: "on"
+    to: "off"
+    id: aus
+  - trigger: state
+    entity_id: input_boolean.nehemia_putzmodus
+    to: "on"
+    for: "02:00:00"
+    id: zeit
+  - trigger: state
+    entity_id:
+      - light.hue_white_lamp_1
+      - light.hue_white_lamp_2
+    from: unavailable
+    id: lampe_zurueck
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: [an, lampe_zurueck]
+          - condition: state
+            entity_id: input_boolean.nehemia_putzmodus
+            state: "on"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: [input_select.nehemia_modus_schrank, input_select.nehemia_modus_sofa]
+            data:
+              option: manuell_an
+          - action: light.turn_on
+            target:
+              entity_id: [light.hue_white_lamp_1, light.hue_white_lamp_2]
+            data:
+              brightness_pct: 100
+              transition: 1
+      - conditions:
+          - condition: trigger
+            id: aus
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: [input_select.nehemia_modus_schrank, input_select.nehemia_modus_sofa]
+            data:
+              option: automatik
+      - conditions:
+          - condition: trigger
+            id: zeit
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nehemia_putzmodus
