@@ -30,6 +30,7 @@ Zwei getrennte Wecker (Dan, Caleb) mit Sonnenaufgang und sanftem Weckton.
 ## wecker-display
 - Uhr + nächster Wecker; läuft Sonnenaufgang/Ton, ersetzt ein großer „Aus“-Knopf (`script.wecker_stopp`) Datum und nächsten Wecker.
 - Je Karte: Mo–Fr-Zeit groß, darunter Chips „Sa 08:00“ / „So 08:00“ (Kürzel tippen = Tag an/aus, Zeit tippen = Drehrad).
+- Raus-Knopf oben links: verlässt das Kiosk-Dashboard (Ziel per Karten-Config `raus:`, Standard `/`).
 - Weckzeit: eigene 24-h-Anzeige, darüber ein unsichtbares `<input type="time">` (öffnet das iOS-Drehrad) → `input_datetime.set_datetime`.
 - Nach Code-Änderung: Ressource mit `ha_config_set_dashboard_resource(content=…, resource_id=4d4338a0…)` neu speichern, App auf dem SE neu laden.
 - **Lampenleiste:** Schrank / Fenster (toggle), Alles aus (`script.alles_aus`, wie der Knopf am iPad). An = gelb mit %, nicht erreichbar = „offline“. Antippen zählt als manuell → `manuell_an`.

@@ -14,6 +14,7 @@ const LICHT = [
 const ICON = {
   bulb: '<path d="M9 21h6M10 18h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  raus: '<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M9 8l-4 4 4 4M5 12h11"/>',
 };
 const TAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const MONATE = ["Jan", "Feb", "M\u00e4r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
@@ -105,6 +106,12 @@ class WeckerDisplay extends HTMLElement {
         .lk { flex: 1 1 0; min-width: 0; max-width: 68px; padding: 7px 0 6px; border-radius: 18px; border: 1px solid rgba(255,255,255,.18);
           background: rgba(18,18,22,.62); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
           color: var(--fg); font: inherit; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        /* Raus-Knopf: verlaesst das Kiosk-Dashboard (Ziel per config raus:, Standard "/") */
+        .raus { position: absolute; z-index: 2; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left));
+          width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+          background: rgba(18,18,22,.62); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
+          color: var(--dim); display: flex; align-items: center; justify-content: center; }
+        .raus svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .lk svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
         .lt { font-size: 11px; font-weight: 600; }
         .ls { font-size: 10px; color: var(--dim); min-height: 12px; }
@@ -147,6 +154,7 @@ class WeckerDisplay extends HTMLElement {
       </style>
       <div class="bg"></div>
       <div class="wrap" lang="de">
+        <button class="raus" aria-label="Dashboard verlassen"><svg viewBox="0 0 24 24">${ICON.raus}</svg></button>
         <div class="oben">
           <div class="uhr"></div>
           <div class="datum"></div>
@@ -157,6 +165,10 @@ class WeckerDisplay extends HTMLElement {
         <div class="unten">${personen}</div>
       </div>`;
     this._el = (s) => root.querySelector(s);
+    this._el(".raus").addEventListener("click", () => {
+      history.pushState(null, "", this._config?.raus || "/");
+      window.dispatchEvent(new Event("location-changed"));
+    });
     this._el(".stopp").addEventListener("click", () => this._call("script", "turn_on", { entity_id: "script.wecker_stopp" }));
     root.querySelectorAll(".lk").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.k;
