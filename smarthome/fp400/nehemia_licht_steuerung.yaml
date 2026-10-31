@@ -83,6 +83,13 @@ triggers:
     entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
     from: "off"
     to: "on"
+  # Hell geworden: automatisch eingeschaltete Lampen aus (Wunsch 30.10.)
+  - id: hell
+    trigger: state
+    entity_id: input_boolean.nehemia_dunkel_gespeicherter_status
+    from: "on"
+    to: "off"
+    for: "00:02:00"
   - id: modus
     trigger: state
     entity_id:
@@ -504,6 +511,8 @@ actions:
           {% set zs = 0 %}
         {% endif %}
         {{ zs }}
+  # Tagsueber nur ausschalten: bei "hell" oder "leer" gehen brennende Lampen im Modus automatik aus
+  # (manuell_an, z. B. Siri oder Putzmodus, bleibt an). Sonst schaltet die Automatik tagsueber nichts.
   - alias: Tagsueber nichts schalten
     if:
       - condition: state
@@ -514,6 +523,34 @@ actions:
           - condition: trigger
             id: gute_nacht
     then:
+      - if:
+          - condition: trigger
+            id: [hell, leer]
+        then:
+          - if:
+              - condition: state
+                entity_id: input_select.nehemia_modus_schrank
+                state: automatik
+              - condition: state
+                entity_id: light.hue_white_lamp_1
+                state: "on"
+            then:
+              - action: light.turn_off
+                target:
+                  entity_id: light.hue_white_lamp_1
+                continue_on_error: true
+          - if:
+              - condition: state
+                entity_id: input_select.nehemia_modus_sofa
+                state: automatik
+              - condition: state
+                entity_id: light.hue_white_lamp_2
+                state: "on"
+            then:
+              - action: light.turn_off
+                target:
+                  entity_id: light.hue_white_lamp_2
+                continue_on_error: true
       - stop: Hell - Automatik schaltet nichts
   # 3) Lampen schalten (nur im Modus automatik und wenn erreichbar)
   - alias: Schranklicht

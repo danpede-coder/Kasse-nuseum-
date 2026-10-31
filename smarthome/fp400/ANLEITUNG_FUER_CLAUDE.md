@@ -169,3 +169,7 @@ Lampen:
 ## Putzmodus (30.10.)
 - `input_boolean.nehemia_putzmodus` (Siri ueber HomeKit-Bridge „HASS Bridge OV“, iPad-Kachel „Putzmodus“ unter „Pflanzen gegossen“ (rechte Spalte, Dashboard `zuhause-nehemia`)).
 - Automation `nehemia_putzmodus.yaml`: an → beide Modi `manuell_an` + 100 %; aus → Modi `automatik` (Lichtsteuerung rechnet neu); nach 2 h automatisch aus; nach Hue-Aussetzer wird nachgezogen.
+
+## Hell = Licht aus (31.10., nur Repo – in HA noch einspielen!)
+- Neuer Trigger `hell` (Dunkelstatus on→off, 2 min). Im Block „Tagsueber nichts schalten“ schalten `hell` und `leer` brennende Lampen im Modus `automatik` aus; `manuell_an` (Siri, Putzmodus) bleibt an.
+- Stand: nur in `nehemia_licht_steuerung.yaml`, HA-Verbindung war weg. Beim nächsten Mal per python_transform in `automation.nehemia_licht_steuerung_2_personen` übernehmen und diesen Hinweis anpassen.
